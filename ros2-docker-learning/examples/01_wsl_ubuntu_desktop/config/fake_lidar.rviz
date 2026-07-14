@@ -1,0 +1,23 @@
+Panels:
+  - Class: rviz_common/Displays
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Name: Fake LaserScan
+      Topic:
+        Value: /scan
+      Size (m): 0.03
+      Style: Points
+      Value: true
+  Global Options:
+    Fixed Frame: map
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 8
+      Pitch: 0.7
+      Yaw: 0.7

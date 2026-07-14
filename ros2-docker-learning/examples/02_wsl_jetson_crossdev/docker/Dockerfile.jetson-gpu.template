@@ -1,0 +1,14 @@
+# Actual Jetson deployment template.
+# Select an NVIDIA base image that exactly matches the target JetPack / Jetson Linux release.
+ARG JETSON_BASE_IMAGE
+FROM ${JETSON_BASE_IMAGE}
+
+# Do not assume that an amd64 nvidia/cuda image is suitable for Jetson.
+# Add the ROS 2 installation and user-space dependencies supported by the target OS here.
+WORKDIR /workspace
+COPY src ./src
+
+# Example only: build commands depend on the ROS 2 and Ubuntu versions in JETSON_BASE_IMAGE.
+# RUN source /opt/ros/${ROS_DISTRO}/setup.bash && colcon build --merge-install
+
+CMD ["bash"]

@@ -1,0 +1,11 @@
+services:
+  robot_system:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.runtime
+      args:
+        ROS_DISTRO: ${ROS_DISTRO:-lyrical}
+    image: ros2-lab-runtime:${ROS_DISTRO:-lyrical}
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-42}
+    restart: unless-stopped

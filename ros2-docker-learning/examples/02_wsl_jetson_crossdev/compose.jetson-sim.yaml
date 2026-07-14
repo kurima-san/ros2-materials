@@ -1,0 +1,12 @@
+services:
+  jetson_sim:
+    platform: linux/arm64
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.arm64
+      args:
+        ROS_DISTRO: ${ROS_DISTRO:-lyrical}
+    image: ros2-jetson-sim:${ROS_DISTRO:-lyrical}
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-52}
+      TARGET_DEVICE: jetson-simulated-arm64

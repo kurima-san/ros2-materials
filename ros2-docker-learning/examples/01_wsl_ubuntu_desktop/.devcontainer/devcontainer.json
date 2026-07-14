@@ -1,0 +1,16 @@
+{
+  "name": "ROS 2 Docker Desktop Lab",
+  "dockerComposeFile": "../compose.dev.yaml",
+  "service": "desktop",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-python.python",
+        "ms-vscode.cpptools"
+      ]
+    }
+  }
+}
