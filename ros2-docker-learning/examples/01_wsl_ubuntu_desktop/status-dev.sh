@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -e
 cd "$(dirname "$0")"
-docker compose -f compose.dev.yaml down
+docker compose -f compose.dev.yaml ps

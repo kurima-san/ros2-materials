@@ -1,260 +1,365 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Dockerの基礎からROS 2のデスクトップ開発、通信、WSL、Ubuntu、Jetson向けARM64開発まで学ぶオフライン教材"><title>ROS 2 × Docker 開発・配布実践コース</title><link rel="stylesheet" href="assets/styles.css"><script src="assets/app.js" defer></script></head><body>
+<!DOCTYPE html>
+<!-- BUILD: layout-v4-20260714 -->
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="description" content="Dockerの目的と基本構造から始め、Dockerfile、Image、Container、Compose、ROS 2開発、通信、WSL、Ubuntu、Jetsonまで順番に学ぶオフライン教材"/>
+  <title>ROS 2 × Docker 基礎から実機開発まで</title>
+  <link href="assets/styles.css?v=20260714-layout-v4" rel="stylesheet"/>
+  <style id="goal-flow-v3-critical">
+    .goal-flow-v3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      align-items: stretch;
+      gap: 12px;
+      margin: 18px 0;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--code);
+    }
+    .goal-stage-v3 {
+      min-width: 0;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-2);
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+    .goal-stage-v3 strong {
+      display: block;
+      margin: 3px 0 8px;
+      font-size: 1.05rem;
+      line-height: 1.35;
+    }
+    .goal-stage-v3 span:last-child {
+      display: block;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .goal-kicker-v3 {
+      display: inline-block;
+      color: var(--accent);
+      font-size: .76rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+    }
+    @media (max-width: 760px) {
+      .goal-flow-v3 { grid-template-columns: minmax(0, 1fr); }
+    }
+  </style>
+  <script defer src="assets/app.js?v=20260714-layout-v4"></script>
+</head>
+<body>
 <a class="skip-link" href="#main">本文へ移動</a>
-<header class="hero"><div class="hero-inner"><span class="eyebrow">OFFLINE COURSE · UPDATED 2026-07</span><h1>Docker内で開発し、<br>ROS 2を1コマンドで配布する</h1><p>Dockerfile、開発用デスクトップ、bind mount、Compose、DDS通信、Windows＋WSL 2、Ubuntuネイティブ、Jetson向けARM64 cross developmentを段階的に学びます。</p><div class="badge-row"><span class="badge">ブラウザDesktop</span><span class="badge">疑似LiDAR</span><span class="badge">RViz2</span><span class="badge">amd64 / arm64</span><span class="badge">実機不要サンプル</span></div><div class="hero-actions"><a class="btn primary" href="#step-0">学習を始める</a><a class="btn" href="examples/01_wsl_ubuntu_desktop/">標準サンプル</a><button class="btn ghost" type="button" onclick="window.print()">印刷・PDF保存</button></div></div></header>
-<div class="layout"><aside class="sidebar" aria-label="コースナビゲーション"><h2>コース設定</h2><label for="distroSelect">ROS 2 distribution</label><select id="distroSelect"><option value="lyrical">Lyrical Luth（2026 LTS）</option><option value="jazzy">Jazzy Jalisco（2024 LTS）</option><option value="humble">Humble Hawksbill（2022 LTS）</option></select><div class="progress-shell"><div class="progress-track"><div id="progressBar" class="progress-bar"></div></div><div id="progressText" class="progress-text">0 / 18 ステップ完了</div></div><label for="searchBox">教材内検索</label><input id="searchBox" type="search" placeholder="例: ENTRYPOINT、Jetson、DDS"><nav class="nav-list"><a href="#step-0"><span class="nav-number">00</span><span>全体設計</span></a><a href="#step-1"><span class="nav-number">01</span><span>Docker基礎</span></a><a href="#step-2"><span class="nav-number">02</span><span>導入</span></a><a href="#step-3"><span class="nav-number">03</span><span>初コンテナ</span></a><a href="#step-4"><span class="nav-number">04</span><span>起動命令</span></a><a href="#step-5"><span class="nav-number">05</span><span>Docker内開発</span></a><a href="#step-6"><span class="nav-number">06</span><span>GUI開発</span></a><a href="#step-7"><span class="nav-number">07</span><span>ROS 2開発</span></a><a href="#step-8"><span class="nav-number">08</span><span>dev/runtime</span></a><a href="#step-9"><span class="nav-number">09</span><span>1コマンド起動</span></a><a href="#step-10"><span class="nav-number">10</span><span>Docker通信</span></a><a href="#step-11"><span class="nav-number">11</span><span>DDS通信</span></a><a href="#step-12"><span class="nav-number">12</span><span>WSL＋Ubuntu</span></a><a href="#step-13"><span class="nav-number">13</span><span>WSL＋Jetson</span></a><a href="#step-14"><span class="nav-number">14</span><span>Ubuntu実機</span></a><a href="#step-15"><span class="nav-number">15</span><span>Jetson配布</span></a><a href="#step-16"><span class="nav-number">16</span><span>Device/GPU</span></a><a href="#step-17"><span class="nav-number">17</span><span>完成判定</span></a></nav></aside>
-<main id="main"><section class="course-intro"><h2>この更新版に追加したもの</h2><div class="sample-grid"><div class="sample-card"><h3>標準GUI開発環境</h3><p>XFCE＋TigerVNC＋noVNC。WSL、Ubuntu、Windowsブラウザから同じ画面を使えます。</p></div><div class="sample-card"><h3>WSL＋Jetson cross development</h3><p>Jetsonなしでlinux/arm64 buildとCPU側ROS 2ノードをQEMUで確認します。</p></div><div class="sample-card"><h3>dev/runtime分離</h3><p>開発用はmountとGUI、完成版はmulti-stage buildとROS 2 launch。</p></div><div class="sample-card"><h3>通信パターン</h3><p>Compose bridge、host access、external ROS 2、host networkを整理しました。</p></div></div></section>
-<section id="step-0" class="module">
-<div class="module-head"><div><p class="step-label">STEP 00</p><h2>結論：Dockerfile・Compose・ROS 2 launchを分担する</h2><p class="module-summary">開発環境の再現、開発中の操作、完成版の一括起動を別の層として設計します.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-0" type="checkbox">完了</label></div>
+<header class="hero"><div class="hero-inner">
+  <span class="eyebrow">FOUNDATION TO ROBOT · OFFLINE COURSE · 2026-07</span>
+  <h1>Dockerの基礎から始める<br/>ROS 2開発環境</h1>
+  <p>Dockerを使う理由と基本構造を理解し、開発環境の作成、ROS 2プログラムの開発、通信、Ubuntu・Jetsonへの展開までを順番に学びます。</p>
+  <div class="badge-row"><span class="badge">Docker初学者向け</span><span class="badge">GUI開発環境</span><span class="badge">実機なしサンプル</span><span class="badge">Ubuntu・Jetson対応</span></div>
+  <div class="hero-actions"><a class="btn primary" href="#step-0">学習を始める</a><a class="btn" href="#step-9">サンプルを起動する</a><button class="btn ghost" onclick="window.print()" type="button">印刷・PDF保存</button></div>
+</div></header>
+<div class="layout">
+<aside aria-label="コースナビゲーション" class="sidebar">
+  <h2>コース設定</h2>
+  <label for="distroSelect">ROS 2 distribution</label>
+  <select id="distroSelect"><option value="lyrical">Lyrical Luth（2026 LTS）</option><option value="jazzy">Jazzy Jalisco（2024 LTS）</option><option value="humble">Humble Hawksbill（2022 LTS）</option></select>
+  <div class="progress-shell"><div class="progress-track"><div class="progress-bar" id="progressBar"></div></div><div class="progress-text" id="progressText">0 / 18 ステップ完了</div></div>
+  <label for="searchBox">教材内検索</label><input id="searchBox" placeholder="例: Dockerfile、Compose、Jetson" type="search"/>
+  <nav class="nav-list">
+    <a href="#step-0"><span class="nav-number">00</span><span>全体像とゴール</span></a>
+    <a href="#step-1"><span class="nav-number">01</span><span>Dockerを使う理由</span></a>
+    <a href="#step-2"><span class="nav-number">02</span><span>4つの基本要素</span></a>
+    <a href="#step-3"><span class="nav-number">03</span><span>操作する場所</span></a>
+    <a href="#step-4"><span class="nav-number">04</span><span>Docker単体の操作</span></a>
+    <a href="#step-5"><span class="nav-number">05</span><span>Dockerfile</span></a>
+    <a href="#step-6"><span class="nav-number">06</span><span>Composeの役割</span></a>
+    <a href="#step-7"><span class="nav-number">07</span><span>Composeの操作</span></a>
+    <a href="#step-8"><span class="nav-number">08</span><span>開発用と完成版</span></a>
+    <a href="#step-9"><span class="nav-number">09</span><span>GUIサンプル</span></a>
+    <a href="#step-10"><span class="nav-number">10</span><span>Docker内で開発</span></a>
+    <a href="#step-11"><span class="nav-number">11</span><span>完成版を作る</span></a>
+    <a href="#step-12"><span class="nav-number">12</span><span>Dockerの通信</span></a>
+    <a href="#step-13"><span class="nav-number">13</span><span>ROS 2の通信</span></a>
+    <a href="#step-14"><span class="nav-number">14</span><span>WSL＋Ubuntu</span></a>
+    <a href="#step-15"><span class="nav-number">15</span><span>WSL＋Jetson</span></a>
+    <a href="#step-16"><span class="nav-number">16</span><span>Ubuntu・Jetson実機</span></a>
+    <a href="#step-17"><span class="nav-number">17</span><span>最終ワークフロー</span></a>
+  </nav>
+</aside>
+<main id="main">
+<section class="course-intro">
+  <h2>学習の流れ</h2>
+  <p>この教材では、個別のコマンドを暗記する前に、Docker全体の仕組みを理解します。その後でCompose、ROS 2開発、通信、実機環境へ進みます。</p>
+  <div class="sample-grid">
+    <div class="sample-card"><h3>第1段階：全体像</h3><p>Dockerを使う理由と、Dockerfile・Image・Container・Composeの関係を理解します。</p></div>
+    <div class="sample-card"><h3>第2段階：基本操作</h3><p>Docker単体の操作、Dockerfile、Composeの順に学びます。</p></div>
+    <div class="sample-card"><h3>第3段階：ROS 2開発</h3><p>ブラウザDesktopを起動し、Container内で編集・ビルド・実行します。</p></div>
+    <div class="sample-card"><h3>第4段階：展開</h3><p>通信、WSL、Ubuntu、Jetson、USB・GPUへ範囲を広げます。</p></div>
+  </div>
+  <div class="callout success"><strong>最初の到達点：</strong>実機なしでGUI付きROS 2開発環境を起動し、疑似LiDARをRViz2で確認できるようになります。</div>
+</section>
 
-<div class="callout success"><strong>目標は、開発時にはブラウザでデスクトップを開き、完成後は1コマンドでROS 2システムを起動できる構成です。</strong></div>
-<div class="architecture">
-  <div class="arch-row"><div class="arch-box"><strong>Dockerfile</strong><br><span class="small">OS、ROS 2、apt/pip、開発ツール</span></div><div class="arch-arrow">→</div><div class="arch-box">再現可能な<strong>イメージ</strong>を作る</div></div>
-  <div class="arch-row"><div class="arch-box"><strong>Compose</strong><br><span class="small">mount、network、GPU、USB、起動サービス</span></div><div class="arch-arrow">→</div><div class="arch-box">複数コンテナを<strong>1コマンド</strong>で管理する</div></div>
-  <div class="arch-row"><div class="arch-box"><strong>ROS 2 launch</strong><br><span class="small">ノード、parameter、remap、namespace</span></div><div class="arch-arrow">→</div><div class="arch-box">ロボットアプリの<strong>ノード群</strong>を起動する</div></div>
+<section class="module" id="step-0">
+<div class="module-head"><div><p class="step-label">STEP 00</p><h2>この教材で作るものと学習ゴール</h2><p class="module-summary">最終形を先に把握し、各章が何のためにあるかを理解します。</p></div><label class="done-label"><input class="module-done" data-module="step-0" type="checkbox"/>完了</label></div>
+<div class="goal-flow-v3" aria-label="Dockerを使ったROS 2開発の完成イメージ">
+  <div class="goal-stage-v3">
+    <span class="goal-kicker-v3">STEP 1</span>
+    <strong>開発PC</strong>
+    <span>Windows＋WSL、またはUbuntuでソースコードを管理します。</span>
+  </div>
+  <div class="goal-stage-v3">
+    <span class="goal-kicker-v3">STEP 2</span>
+    <strong>Docker開発環境</strong>
+    <span>ROS 2、RViz2、ビルドツールをContainer内で使用します。</span>
+  </div>
+  <div class="goal-stage-v3">
+    <span class="goal-kicker-v3">GOAL</span>
+    <strong>完成版Container</strong>
+    <span>起動するとROS 2システムが自動的に実行される形へまとめます。</span>
+  </div>
 </div>
 <div class="grid-3">
-<div class="card"><h3>開発用</h3><p>ソースをbind mountし、コンテナを常駐させて反復ビルドします。標準サンプルはXFCE＋noVNCを使います。</p></div>
-<div class="card"><h3>実行用</h3><p>ソースをイメージ内でビルドし、install成果物だけを持つruntime imageを作ります。</p></div>
-<div class="card"><h3>通信</h3><p>同一Compose、ホスト接続、外部PC、ROS 2 DDSを別々に理解します。</p></div>
+  <div class="card"><h3>開発環境を再現する</h3><p>別のPCでも同じROS 2とライブラリを使えるようにします。</p></div>
+  <div class="card"><h3>Container内で開発する</h3><p>ソースはPC側に残し、ビルドや実行をContainer内で行います。</p></div>
+  <div class="card"><h3>1操作で起動する</h3><p>完成後は、複数ノードや設定をまとめて起動できる形にします。</p></div>
 </div>
+<h3>この教材の成果物</h3>
+<ul class="checklist"><li>ブラウザで開けるROS 2開発Desktop</li><li>疑似LiDARと監視ノードのROS 2サンプル</li><li>開発用と完成版のDocker設定</li><li>WSL、Ubuntu、Jetson向けのサンプル</li><li>DockerおよびROS 2通信の設定例</li></ul>
+</section>
 
-</section><section id="step-1" class="module">
-<div class="module-head"><div><p class="step-label">STEP 01</p><h2>Dockerとは：ImageとContainerを区別する</h2><p class="module-summary">DockerはLinuxカーネルを共有しながら、プロセス・ファイルシステム・ネットワークを隔離します.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-1" type="checkbox">完了</label></div>
+<section class="module" id="step-1">
+<div class="module-head"><div><p class="step-label">STEP 01</p><h2>ROS 2開発でDockerを使う理由</h2><p class="module-summary">Dockerが解決する問題を理解してから、コマンドへ進みます。</p></div><label class="done-label"><input class="module-done" data-module="step-1" type="checkbox"/>完了</label></div>
+<div class="grid-2">
+  <div class="card"><h3>Dockerを使わない場合</h3><ul><li>PCごとにROS 2やライブラリの状態が違う</li><li>pipやaptの追加で環境が複雑になる</li><li>別PCへの移行手順が長くなる</li><li>開発環境と実機環境の差が大きくなる</li></ul></div>
+  <div class="card"><h3>Dockerを使う場合</h3><ul><li>必要なソフトを設定ファイルへ記録できる</li><li>環境を作り直しやすい</li><li>プロジェクトごとに環境を分けられる</li><li>開発PCからUbuntu・Jetsonへ移しやすい</li></ul></div>
+</div>
+<div class="callout"><strong>Dockerの役割：</strong>プログラムそのものだけでなく、そのプログラムを動かすOS環境と依存ライブラリもまとめて管理します。</div>
+</section>
 
-<div class="flow"><div class="flow-node">Dockerfile</div><div class="flow-arrow">→</div><div class="flow-node">docker build</div><div class="flow-arrow">→</div><div class="flow-node">Image</div><div class="flow-arrow">→</div><div class="flow-node">Container</div></div>
-<div class="term"><strong>Dockerfile</strong><span>イメージを作る手順書です。</span></div>
-<div class="term"><strong>Image</strong><span>ROS 2と依存関係を含む読み取り専用テンプレートです。</span></div>
-<div class="term"><strong>Container</strong><span>イメージから起動したプロセス環境です。削除可能な作業環境として扱います。</span></div>
-<div class="term"><strong>Registry</strong><span>Docker Hubや社内Registryなど、イメージの保管場所です。</span></div>
-<div class="term"><strong>Compose</strong><span>複数コンテナ、mount、network、環境変数をYAMLでまとめます。</span></div>
-<div class="callout warning"><strong>重要：</strong>ソースコードをコンテナ内だけに作らないでください。開発中はbind mount、成果物やデータはvolumeを使い、コンテナを消しても残るようにします。</div>
+<section class="module" id="step-2">
+<div class="module-head"><div><p class="step-label">STEP 02</p><h2>Dockerfile・Image・Container・Composeの関係</h2><p class="module-summary">Dockerの4つの基本要素を、作成と起動の順に整理します。</p></div><label class="done-label"><input class="module-done" data-module="step-2" type="checkbox"/>完了</label></div>
+<div class="term"><strong>Dockerfile</strong><span>ROS 2や必要なソフトをどのように準備するかを書く手順書です。</span></div>
+<div class="term"><strong>Image</strong><span>Dockerfileから作られる、起動前の完成済み環境です。</span></div>
+<div class="term"><strong>Container</strong><span>Imageを実際に起動したものです。ROS 2プログラムはこの中で動きます。</span></div>
+<div class="term"><strong>Compose</strong><span>複数のContainer、ネットワーク、フォルダー共有、ポート、起動方法をまとめる仕組みです。</span></div>
+<div class="flow"><div class="flow-node">Dockerfile</div><div class="flow-arrow">→</div><div class="flow-node">Image</div><div class="flow-arrow">→</div><div class="flow-node">Container</div></div>
+<p>Composeはこの流れの外側で、複数のContainerをまとめて管理します。</p>
+<div class="callout success"><strong>重要：</strong>ComposeはContainerの種類ではありません。Containerの構成と起動方法をまとめる管理機能です。</div>
+</section>
 
-</section><section id="step-2" class="module">
-<div class="module-head"><div><p class="step-label">STEP 02</p><h2>Windows＋WSL 2とUbuntuへDockerを導入する</h2><p class="module-summary">WindowsはDocker Desktop＋WSL Integration、UbuntuネイティブはDocker Engineが基本です.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-2" type="checkbox">完了</label></div>
+<section class="module" id="step-3">
+<div class="module-head"><div><p class="step-label">STEP 03</p><h2>Dockerを操作する場所とContainer内の違い</h2><p class="module-summary">どの画面で何を操作するかを最初に区別します。</p></div><label class="done-label"><input class="module-done" data-module="step-3" type="checkbox"/>完了</label></div>
+<div class="grid-2">
+  <div class="card"><h3>Containerの外側</h3><p>WindowsのPowerShell、WSLのUbuntu Terminal、Ubuntu Terminalなどです。</p><p>ここからDockerへ「作る」「起動する」「停止する」と指示します。</p><pre><code>docker version
+docker compose version</code></pre></div>
+  <div class="card"><h3>Containerの内側</h3><p>すでに起動したContainerの内部にあるTerminalです。</p><p>ここではROS 2のビルドや実行を行います。</p><pre><code>ros2 topic list
+colcon build</code></pre></div>
+</div>
+<table><thead><tr><th>表示例</th><th>場所</th><th>主に行うこと</th></tr></thead><tbody><tr><td><code>user@pc:~/project$</code></td><td>Container外側</td><td>Dockerの操作</td></tr><tr><td><code>rosdev@a1b2c3:/workspace$</code></td><td>Container内側</td><td>ROS 2の開発・実行</td></tr></tbody></table>
+<div class="callout"><code>docker version</code>、<code>docker compose version</code>、<code>docker run --rm hello-world</code>は、Container外側のTerminalで実行します。</div>
+</section>
 
-<div class="tabs"><div class="tab-buttons" role="tablist">
-<button class="tab-button active" data-target="install-wsl" type="button">Windows 11 + WSL 2</button>
-<button class="tab-button" data-target="install-ubuntu" type="button">Ubuntuネイティブ</button></div>
-<div id="install-wsl" class="tab-panel active"><ol><li>WSL 2 Ubuntuを用意する。</li><li>Docker Desktopを導入する。</li><li>Settings → Resources → WSL IntegrationでUbuntuを有効にする。</li><li>プロジェクトは原則としてWSL側の <code>~/workspace</code> に置く。</li></ol>
-<div class="code-wrap"><div class="code-title">PowerShell</div><pre><code>wsl --update
-wsl -l -v
-wsl --set-default-version 2</code></pre></div></div>
-<div id="install-ubuntu" class="tab-panel"><p>Docker公式手順でDocker EngineとCompose pluginを導入します。古い <code>docker-compose</code> ではなく <code>docker compose</code> を使います。</p></div></div>
-<div class="code-wrap"><div class="code-title">共通確認</div><pre><code>docker version
-docker compose version
-docker run --rm hello-world</code></pre></div>
-<p>WSLでWindows側の <code>C:\...</code> をmountするより、WSL Linuxファイルシステムの <code>/home/...</code> にソースを置く方が、一般にbind mountの性能とファイル監視に有利です。</p>
+<section class="module" id="step-4">
+<div class="module-head"><div><p class="step-label">STEP 04</p><h2>Docker単体の基本操作を順番に理解する</h2><p class="module-summary">Composeを使う前に、Image取得・Image作成・Container起動の違いを学びます。</p></div><label class="done-label"><input class="module-done" data-module="step-4" type="checkbox"/>完了</label></div>
+<table><thead><tr><th>操作</th><th>役割</th><th>結果</th></tr></thead><tbody>
+<tr><td><code>docker pull</code></td><td>公開済みImageを取得する</td><td>ImageがPCへ保存される</td></tr>
+<tr><td><code>docker build</code></td><td>DockerfileからImageを作る</td><td>自分のImageが作られる</td></tr>
+<tr><td><code>docker run</code></td><td>ImageからContainerを作って起動する</td><td>プログラムが実行される</td></tr>
+</tbody></table>
+<div class="architecture"><div class="arch-row arch-5"><div class="arch-box"><strong>pull</strong><br/><span class="small">Imageを取得</span></div><div class="arch-arrow">または</div><div class="arch-box"><strong>build</strong><br/><span class="small">Imageを作成</span></div><div class="arch-arrow">→</div><div class="arch-box"><strong>run</strong><br/><span class="small">Containerを作成・起動</span></div></div></div>
+<div class="code-wrap"><div class="code-title">最初の動作確認</div><pre><code>docker run --rm hello-world</code></pre></div>
+<p>必要なImageがPCにない場合は、Dockerが自動的に取得してからContainerを起動します。</p>
+<details><summary>単体コマンドをもう少し試す</summary><pre><code>docker pull ubuntu:24.04
+docker run --rm -it ubuntu:24.04 bash</code></pre><p><code>exit</code>で一時Containerを終了します。</p></details>
+</section>
 
-</section><section id="step-3" class="module">
-<div class="module-head"><div><p class="step-label">STEP 03</p><h2>最初のコンテナを対話的に使う</h2><p class="module-summary">コンテナは仮想PCではなく、指定したメインプロセスが終了すると停止する環境です.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-3" type="checkbox">完了</label></div>
-<div class="code-wrap"><div class="code-title">Terminal</div><pre><code>docker run --rm -it ros:<span data-distro>lyrical</span>-ros-base bash
-printenv ROS_DISTRO
-ros2 --help
-exit</code></pre></div>
-<table><thead><tr><th>オプション</th><th>意味</th></tr></thead><tbody><tr><td><code>--rm</code></td><td>終了後にコンテナを削除</td></tr><tr><td><code>-it</code></td><td>対話端末を割り当てる</td></tr><tr><td><code>ros:...</code></td><td>起動元のイメージ</td></tr><tr><td><code>bash</code></td><td>今回のメインプロセス</td></tr></tbody></table>
+<section class="module" id="step-5">
+<div class="module-head"><div><p class="step-label">STEP 05</p><h2>Dockerfileで開発環境の作り方を記録する</h2><p class="module-summary">Dockerfileは、ROS 2環境を再現するための手順書です。</p></div><label class="done-label"><input class="module-done" data-module="step-5" type="checkbox"/>完了</label></div>
+<table><thead><tr><th>項目</th><th>意味</th><th>使われる時</th></tr></thead><tbody><tr><td><code>FROM</code></td><td>土台にする環境</td><td>Imageを作る時</td></tr><tr><td><code>RUN</code></td><td>ソフトの追加やビルド</td><td>Imageを作る時</td></tr><tr><td><code>CMD</code></td><td>起動時の標準動作</td><td>Containerを起動する時</td></tr><tr><td><code>ENTRYPOINT</code></td><td>起動時に必ず行う準備</td><td>Containerを起動する時</td></tr></tbody></table>
+<div class="code-wrap"><div class="code-title">最小のDockerfile</div><pre><code>FROM ros:<span data-distro>lyrical</span>-ros-base
+RUN apt-get update &amp;&amp; apt-get install -y python3-colcon-common-extensions
+CMD ["bash"]</code></pre></div>
+<p>このファイルからImageを作る時だけ、次の操作を使います。</p>
+<pre><code>docker build -t my-ros2-dev .</code></pre>
+<div class="callout"><strong>暗記する必要はありません。</strong>最初は「RUNはImage作成時」「CMDはContainer起動時」と区別できれば十分です。</div>
+</section>
 
-</section><section id="step-4" class="module">
-<div class="module-head"><div><p class="step-label">STEP 04</p><h2>RUN・CMD・ENTRYPOINTを正しく使う</h2><p class="module-summary">イメージ作成時とコンテナ起動時のコマンドを分けます。ここでの起動時とはDocker Engine自体ではなく、containerをstartする時です。</p></div>
-<label class="done-label"><input class="module-done" data-module="step-4" type="checkbox">完了</label></div>
-<div class="code-wrap"><div class="code-title">Dockerfile</div><pre><code>ARG ROS_DISTRO=<span data-distro>lyrical</span>
-FROM ros:${ROS_DISTRO}-ros-base
-
-# build時に一度だけ実行
-RUN apt-get update &amp;&amp; apt-get install -y git
-
-# 起動時に必ず通す初期化
-ENTRYPOINT [&quot;/ros_entrypoint.sh&quot;]
-
-# 起動時のデフォルト。docker runやComposeで上書き可能
-CMD [&quot;bash&quot;]</code></pre></div>
-<div class="table-scroll"><table><thead><tr><th>命令</th><th>実行時点</th><th>ROS 2での用途</th></tr></thead><tbody><tr><td><code>RUN</code></td><td><code>docker build</code></td><td>apt、pip、colcon build</td></tr><tr><td><code>ENTRYPOINT</code></td><td>毎回のcontainer起動時</td><td>ROS環境のsource</td></tr><tr><td><code>CMD</code></td><td>container起動時</td><td>デフォルトのlaunchまたはbash</td></tr><tr><td>Compose <code>command</code></td><td>container起動時</td><td>DockerfileのCMDを上書き</td></tr></tbody></table></div>
-<div class="callout"><strong>理解：</strong>完成版で「起動コマンドを1つにまとめる」とは、長いシェルコマンドへ全部詰めることではありません。最上位を <code>docker compose up</code> にし、内部でComposeとROS 2 launchへ分担させます。</div>
-
-</section><section id="step-5" class="module">
-<div class="module-head"><div><p class="step-label">STEP 05</p><h2>Docker内で開発する：ソースをbind mountする</h2><p class="module-summary">編集ファイルはホスト／WSLに残し、compilerやROS 2 CLIをコンテナ側へ統一します.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-5" type="checkbox">完了</label></div>
-<div class="code-wrap"><div class="code-title">compose.dev.yaml</div><pre><code>services:
-  dev:
+<section class="module" id="step-6">
+<div class="module-head"><div><p class="step-label">STEP 06</p><h2>Composeで開発環境全体をまとめる</h2><p class="module-summary">Containerごとに長い起動設定を書く代わりに、YAMLへ構成を保存します。</p></div><label class="done-label"><input class="module-done" data-module="step-6" type="checkbox"/>完了</label></div>
+<div class="grid-2">
+  <div class="card"><h3>Composeに書くもの</h3><ul><li>使用するImageまたはDockerfile</li><li>起動するContainerの単位</li><li>共有するプロジェクトフォルダー</li><li>ブラウザや外部PCへ公開するポート</li><li>環境変数と起動時のプログラム</li></ul></div>
+  <div class="card"><h3>本教材の開発構成</h3><ul><li><code>desktop</code>：GUIと開発Terminal</li><li><code>fake_lidar</code>：疑似センサー</li><li><code>monitor</code>：受信確認</li><li>3つをつなぐ共通ネットワーク</li></ul></div>
+</div>
+<div class="code-wrap"><div class="code-title">簡略化したcompose.dev.yaml</div><pre><code>services:
+  desktop:
     build:
-      context: .
       dockerfile: docker/Dockerfile.dev
     volumes:
       - .:/workspace
-    working_dir: /workspace
-    stdin_open: true
-    tty: true
-    command: sleep infinity</code></pre></div><div class="code-wrap"><div class="code-title">開発ループ</div><pre><code>docker compose -f compose.dev.yaml up -d --build
-docker compose -f compose.dev.yaml exec dev bash
-
-colcon build --symlink-install
-source install/setup.bash
-ros2 run my_package my_node</code></pre></div>
-<p><code>--symlink-install</code>はPythonやresourceファイルの反復開発に便利です。C++を変更した場合は再ビルドします。</p>
-
-</section><section id="step-6" class="module">
-<div class="module-head"><div><p class="step-label">STEP 06</p><h2>標準開発環境：ブラウザでROS 2デスクトップを表示する</h2><p class="module-summary">同梱サンプルはXFCE、TigerVNC、noVNC、RViz2をコンテナへ入れ、ブラウザだけでGUIを使えます.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-6" type="checkbox">完了</label></div>
-
-<div class="callout success"><strong>この教材のデフォルト：</strong><code>start-dev.sh</code> または <code>start-dev.bat</code> で、noVNCデスクトップ、疑似LiDAR、監視ノードを起動します。RViz2も自動起動します。</div>
-<div class="code-wrap"><div class="code-title">WSL / Ubuntu</div><pre><code>cd examples/01_wsl_ubuntu_desktop
-./start-dev.sh</code></pre></div><div class="code-wrap"><div class="code-title">Windows</div><pre><code>examples\01_wsl_ubuntu_desktop\start-dev.bat</code></pre></div>
-<p>ブラウザURL：<code>http://127.0.0.1:6080/vnc.html?autoconnect=1&amp;resize=scale</code>、初期パスワード：<code>ros2</code></p>
-<div class="callout warning"><strong>用途：</strong>noVNCは開発と学習向けです。ロボット本番環境ではGUIを外し、runtime imageを使います。</div>
-
-</section><section id="step-7" class="module">
-<div class="module-head"><div><p class="step-label">STEP 07</p><h2>ROS 2ワークスペースをコンテナ内で反復開発する</h2><p class="module-summary">依存解決、ビルド、source、実行、テストを一定の順番にします.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-7" type="checkbox">完了</label></div>
-<div class="code-wrap"><div class="code-title">Container terminal</div><pre><code>cd /workspace
-rosdep install --from-paths src --ignore-src -r -y
-colcon build --symlink-install
-source install/setup.bash
-colcon test
-colcon test-result --verbose
-ros2 launch docker_ros2_lab lab.launch.py</code></pre></div>
-<p>同梱パッケージは <code>/scan</code> に疑似LaserScanをpublishし、最短距離をmonitorします。物理LiDARがなくてもtopic、QoS、RViz2の学習ができます。</p>
-
-</section><section id="step-8" class="module">
-<div class="module-head"><div><p class="step-label">STEP 08</p><h2>開発版と完成版を分ける</h2><p class="module-summary">開発版はtoolとmountを優先し、完成版は小ささ・再現性・自動起動を優先します.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-8" type="checkbox">完了</label></div>
-
-<div class="grid-2"><div class="card"><h3>compose.dev.yaml</h3><ul><li>ソースをbind mount</li><li>noVNCデスクトップ</li><li>debugger、editor、terminal</li><li>コンテナを常駐</li></ul></div><div class="card"><h3>compose.runtime.yaml</h3><ul><li>build済みinstallを含む</li><li>ソースmountなし</li><li>ROS 2 launchをCMDにする</li><li>restart policyを設定可能</li></ul></div></div>
-<div class="code-wrap"><div class="code-title">開発</div><pre><code>docker compose -f compose.dev.yaml up --build</code></pre></div><div class="code-wrap"><div class="code-title">完成版</div><pre><code>docker compose -f compose.runtime.yaml up --build</code></pre></div>
-
-</section><section id="step-9" class="module">
-<div class="module-head"><div><p class="step-label">STEP 09</p><h2>完成版を1コマンド起動にする</h2><p class="module-summary">Composeを外部インターフェース、ROS 2 launchを内部インターフェースとして扱います.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-9" type="checkbox">完了</label></div>
-<div class="code-wrap"><div class="code-title">Dockerfile.runtime</div><pre><code>FROM ros:${ROS_DISTRO}-ros-base AS builder
-COPY src /workspace/src
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh &amp;&amp; colcon build --merge-install
-
-FROM ros:${ROS_DISTRO}-ros-base AS runtime
-COPY --from=builder /workspace/install /workspace/install
-ENTRYPOINT [&quot;/entrypoint.sh&quot;]
-CMD [&quot;ros2&quot;, &quot;launch&quot;, &quot;docker_ros2_lab&quot;, &quot;lab.launch.py&quot;]</code></pre></div><div class="code-wrap"><div class="code-title">利用者が実行するコマンド</div><pre><code>docker compose -f compose.runtime.yaml up --build
-# バックグラウンド
-docker compose -f compose.runtime.yaml up -d --build
-# ログ
-docker compose -f compose.runtime.yaml logs -f
-# 終了
-docker compose -f compose.runtime.yaml down</code></pre></div>
-
-</section><section id="step-10" class="module">
-<div class="module-head"><div><p class="step-label">STEP 10</p><h2>Docker通信を4方向に分ける</h2><p class="module-summary">container間、hostからcontainer、containerからhost、外部PCからcontainerを混同しないようにします.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-10" type="checkbox">完了</label></div>
-
-<div class="table-scroll"><table><thead><tr><th>方向</th><th>基本設定</th><th>接続先の例</th></tr></thead><tbody>
-<tr><td>container → container</td><td>同じCompose network</td><td><code>server:8000</code></td></tr>
-<tr><td>host → container</td><td><code>ports</code></td><td><code>127.0.0.1:8080</code></td></tr>
-<tr><td>container → host</td><td><code>host.docker.internal</code></td><td><code>host.docker.internal:8000</code></td></tr>
-<tr><td>外部PC → container</td><td>port publish＋host firewall</td><td><code>HOST_IP:8080</code></td></tr></tbody></table></div>
-<div class="code-wrap"><div class="code-title">Compose</div><pre><code>services:
-  web:
     ports:
-      - &quot;127.0.0.1:8080:80&quot;
-  client:
-    extra_hosts:
-      - &quot;host.docker.internal:host-gateway&quot;  # Linux Engine用</code></pre></div>
-<div class="callout"><strong>サービス名DNS：</strong>同じCompose projectの通常のTCP/UDP通信では、IP固定ではなくサービス名を使います。</div>
+      - "127.0.0.1:6080:6080"
 
-</section><section id="step-11" class="module">
-<div class="module-head"><div><p class="step-label">STEP 11</p><h2>ROS 2 DDS通信をDockerで扱う</h2><p class="module-summary">ROS 2は固定ポート1本ではなく、DDS Discovery、UDP、multicast、domain、RMWが関係します.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-11" type="checkbox">完了</label></div>
+  fake_lidar:
+    build:
+      dockerfile: docker/Dockerfile.runtime</code></pre></div>
+<div class="callout success"><strong>Composeの目的：</strong>起動のたびに設定を考えるのではなく、同じ開発環境を何度でも再現できるように保存することです。</div>
+</section>
 
-<ul class="checklist"><li>通信させるノードで <code>ROS_DOMAIN_ID</code> をそろえる。</li><li><code>RMW_IMPLEMENTATION</code> とDDS設定を把握する。</li><li>同じCompose bridge内でまず確認する。</li><li>外部ロボットとの通信はUbuntuネイティブのhost networkから試す。</li><li>multicastが通らない場合はDiscovery Serverやexplicit peersを検討する。</li></ul>
-<div class="code-wrap"><div class="code-title">Ubuntuネイティブ向け</div><pre><code>services:
+<section class="module" id="step-7">
+<div class="module-head"><div><p class="step-label">STEP 07</p><h2>Composeで環境を起動・確認・操作・終了する</h2><p class="module-summary">ここで初めて、up・ps・exec・logs・downを学びます。</p></div><label class="done-label"><input class="module-done" data-module="step-7" type="checkbox"/>完了</label></div>
+<table><thead><tr><th>操作</th><th>何をするか</th><th>対象</th></tr></thead><tbody>
+<tr><td><code>up</code></td><td>YAMLを読み、必要なサービスを作って起動する</td><td>通常はYAML内のサービス群</td></tr>
+<tr><td><code>ps</code></td><td>起動状態を確認する</td><td>サービス群</td></tr>
+<tr><td><code>exec desktop bash</code></td><td>起動中のdesktop内でbashを開く</td><td>desktop 1つ</td></tr>
+<tr><td><code>logs</code></td><td>実行中の出力を確認する</td><td>サービス群または指定サービス</td></tr>
+<tr><td><code>down</code></td><td>停止し、Composeが作ったContainerとNetworkを片付ける</td><td>Compose環境全体</td></tr>
+</tbody></table>
+<div class="code-wrap"><div class="code-title">開発環境の基本操作</div><pre><code># 1. Imageを必要に応じて作り、サービス群を裏で起動
+docker compose -f compose.dev.yaml up -d --build
+
+# 2. 起動状態を確認
+docker compose -f compose.dev.yaml ps
+
+# 3. 起動済みdesktop 1つの中へ入る
+docker compose -f compose.dev.yaml exec desktop bash
+
+# 4. Container内から出た後、環境を終了
+docker compose -f compose.dev.yaml down</code></pre></div>
+<div class="grid-2"><div class="answer-box"><h3><code>up</code>はYAMLからbuildする操作？</h3><p><code>up</code>の中心的な役割は、サービスを作成して起動することです。Imageを起動前に作る指定は、末尾の<code>--build</code>です。</p></div><div class="answer-box"><h3><code>exec desktop bash</code>は全Containerを実行する？</h3><p>いいえ。すでに起動している<code>desktop</code>という1サービスを選び、その中で<code>bash</code>を開きます。全サービスの起動は<code>up</code>が行います。</p></div></div>
+<details><summary>補助的なCompose操作</summary><table><tbody><tr><td><code>config</code></td><td>YAMLの内容を検査する</td></tr><tr><td><code>stop</code></td><td>Containerを残したまま停止する</td></tr><tr><td><code>start</code></td><td>停止済みContainerを再開する</td></tr><tr><td><code>build</code></td><td>Imageだけを作る</td></tr></tbody></table></details>
+</section>
+
+<section class="module" id="step-8">
+<div class="module-head"><div><p class="step-label">STEP 08</p><h2>開発用環境と完成版環境を分ける</h2><p class="module-summary">開発中に必要な機能と、実行時に必要な機能は異なります。</p></div><label class="done-label"><input class="module-done" data-module="step-8" type="checkbox"/>完了</label></div>
+<div class="grid-2">
+  <div class="card"><h3>compose.dev.yaml</h3><ul><li>GUIとTerminalを含む</li><li>ソースをPC側から共有する</li><li>何度も編集・ビルド・試験する</li><li>疑似センサーを別サービスで動かす</li></ul></div>
+  <div class="card"><h3>compose.runtime.yaml</h3><ul><li>GUIや編集ツールを省く</li><li>完成済みプログラムを含める</li><li>起動時にROS 2システムを自動実行する</li><li>運用先PCでは基本的に編集しない</li></ul></div>
+</div>
+<table><thead><tr><th>比較項目</th><th>開発用</th><th>完成版</th></tr></thead><tbody><tr><td>目的</td><td>編集・確認</td><td>安定実行</td></tr><tr><td>Desktop</td><td>あり</td><td>通常なし</td></tr><tr><td>ソース共有</td><td>あり</td><td>なし</td></tr><tr><td>起動後の操作</td><td>開発者が操作</td><td>プログラムを自動起動</td></tr></tbody></table>
+</section>
+
+<section class="module" id="step-9">
+<div class="module-head"><div><p class="step-label">STEP 09</p><h2>GUI付きROS 2開発サンプルを起動する</h2><p class="module-summary">ここまでの基本を使い、実機なしの開発環境を動かします。</p></div><label class="done-label"><input class="module-done" data-module="step-9" type="checkbox"/>完了</label></div>
+<div class="sample-grid"><div class="sample-card"><h3>ブラウザDesktop</h3><p>XFCE、Terminal、RViz2をブラウザから操作できます。</p></div><div class="sample-card"><h3>疑似LiDAR</h3><p>実機センサーの代わりに、プログラムがLaserScanを生成します。</p></div><div class="sample-card"><h3>監視ノード</h3><p>別Containerからデータを受け取り、通信できていることを確認します。</p></div><div class="sample-card"><h3>ソース共有</h3><p>PC側のファイルをContainer内の<code>/workspace</code>として使います。</p></div></div>
+<div class="grid-2"><div class="card"><h3>WSL／Ubuntu</h3><pre><code>cd examples/01_wsl_ubuntu_desktop
+chmod +x *.sh docker/*.sh
+./start-dev.sh</code></pre></div><div class="card"><h3>Windows</h3><p><code>examples/01_wsl_ubuntu_desktop</code>内の次のファイルを実行します。</p><pre><code>start-dev.bat</code></pre></div></div>
+<p>起動後、ブラウザで次を開きます。</p><pre><code>http://127.0.0.1:6080/vnc.html?autoconnect=1&amp;resize=scale</code></pre>
+<p>初期VNCパスワードは<code>ros2</code>です。</p>
+<div class="callout"><strong>補助スクリプトの役割：</strong><code>start-dev</code>はComposeの起動操作を短くしたものです。内部のDocker操作はSTEP 07で確認できます。</div>
+<a class="btn primary" href="examples/01_wsl_ubuntu_desktop/README.md">サンプルREADME</a>
+</section>
+
+<section class="module" id="step-10">
+<div class="module-head"><div><p class="step-label">STEP 10</p><h2>Container内でROS 2プログラムを開発する</h2><p class="module-summary">ソースをPC側へ残し、ビルドと実行をContainer内で行います。</p></div><label class="done-label"><input class="module-done" data-module="step-10" type="checkbox"/>完了</label></div>
+<div class="architecture"><div class="arch-row arch-3"><div class="arch-box"><strong>PC側のプロジェクト</strong><br/><span class="small">ソース・設定・Git</span></div><div class="arch-arrow">共有</div><div class="arch-box"><strong>desktop Container</strong><br/><span class="small">ROS 2・ビルドツール・RViz2</span></div></div></div>
+<ol class="command-steps"><li><strong>開発環境を起動する</strong><pre><code>./start-dev.sh</code></pre></li><li><strong>Container内Terminalを開く</strong><pre><code>./open-terminal.sh</code></pre></li><li><strong>ワークスペースをビルドする</strong><pre><code>cd /workspace
+colcon build --symlink-install</code></pre></li><li><strong>ビルド結果を読み込む</strong><pre><code>source install/setup.bash</code></pre></li><li><strong>ROS 2の状態を確認する</strong><pre><code>ros2 node list
+ros2 topic list</code></pre></li><li><strong>Container内から出る</strong><pre><code>exit</code></pre></li></ol>
+<div class="callout success"><strong>ソースが消えない理由：</strong>ソースはPC側にあり、Containerへ共有しているため、Containerを削除しても残ります。</div>
+</section>
+
+<section class="module" id="step-11">
+<div class="module-head"><div><p class="step-label">STEP 11</p><h2>開発したプログラムを完成版へまとめる</h2><p class="module-summary">開発用Containerで確認した後、実行に必要なものだけを完成版Imageへ入れます。</p></div><label class="done-label"><input class="module-done" data-module="step-11" type="checkbox"/>完了</label></div>
+<div class="flow"><div class="flow-node">開発用Desktop</div><div class="flow-arrow">→</div><div class="flow-node">編集・ビルド・試験</div><div class="flow-arrow">→</div><div class="flow-node">完成版Image</div><div class="flow-arrow">→</div><div class="flow-node">自動起動</div></div>
+<div class="grid-2"><div class="card"><h3>開発中</h3><pre><code>./start-dev.sh
+./open-terminal.sh
+# 編集・ビルド・試験
+./stop-dev.sh</code></pre></div><div class="card"><h3>完成版</h3><pre><code>docker compose -f compose.runtime.yaml up -d --build</code></pre><p>Container起動時にROS 2 launchが自動実行されます。</p></div></div>
+<div class="callout"><strong>「起動コマンドを1つにまとめる」とは：</strong>すべてを長い1行へ書くことではありません。Dockerfile、Compose、ROS 2 launchへ役割を分け、利用者の操作を1つにすることです。</div>
+</section>
+
+<section class="module" id="step-12">
+<div class="module-head"><div><p class="step-label">STEP 12</p><h2>Dockerの通信を3つに分けて理解する</h2><p class="module-summary">通信相手がContainer、ホストPC、外部PCのどれかを確認します。</p></div><label class="done-label"><input class="module-done" data-module="step-12" type="checkbox"/>完了</label></div>
+<table><thead><tr><th>通信の種類</th><th>基本的な考え方</th><th>本教材の例</th></tr></thead><tbody><tr><td>同じCompose内</td><td>同じネットワークへ自動接続される</td><td>fake_lidar → monitor</td></tr><tr><td>PCからContainer</td><td>ポートをPC側へ公開する</td><td>ブラウザ → noVNC</td></tr><tr><td>外部PCからContainer</td><td>ホストのIP、公開ポート、ファイアウォールを確認する</td><td>別PC → Web API</td></tr></tbody></table>
+<div class="code-wrap"><div class="code-title">ブラウザDesktopのポート公開</div><pre><code>ports:
+  - "127.0.0.1:6080:6080"</code></pre></div>
+<p>左側はPC側のポート、右側はContainer側のポートです。</p>
+<details><summary>ContainerからホストPCへ接続する場合</summary><p>Docker Desktopでは通常<code>host.docker.internal</code>を使います。Ubuntu Docker Engineでは追加設定が必要な場合があります。</p></details>
+</section>
+
+<section class="module" id="step-13">
+<div class="module-head"><div><p class="step-label">STEP 13</p><h2>ROS 2のContainer間通信と外部ロボット通信</h2><p class="module-summary">まず同じPC内で確認し、その後にLAN上の実機へ進みます。</p></div><label class="done-label"><input class="module-done" data-module="step-13" type="checkbox"/>完了</label></div>
+<div class="grid-2"><div class="card"><h3>最初に確認する範囲</h3><ul><li>fake_lidarがデータを送る</li><li>monitorがデータを受ける</li><li>desktopのRViz2が表示する</li><li>各サービスの<code>ROS_DOMAIN_ID</code>を同じにする</li></ul></div><div class="card"><h3>後から確認する範囲</h3><ul><li>LAN上のロボットや別PC</li><li>Wi-FiやVPNを越える通信</li><li>複数ネットワーク機器の選択</li><li>Discovery Serverなどの追加設定</li></ul></div></div>
+<div class="callout success"><strong>学習時の目標：</strong>同じCompose内でROS 2ノード同士が通信できれば、基本部分は成功です。</div>
+<details><summary>外部ロボット通信の用語</summary><p>ROS 2はDDSを使い、相手を見つけるためにUDPやmulticastを利用します。Windows＋WSL＋Docker Desktopではネットワーク変換が入るため、Ubuntuネイティブと同じ動作にならない場合があります。</p><pre><code>services:
   robot_system:
     network_mode: host
-    ipc: host
     environment:
-      ROS_DOMAIN_ID: &quot;42&quot;</code></pre></div><div class="code-wrap"><div class="code-title">multicast確認</div><pre><code># PC A
-ros2 multicast receive
-# PC B
-ros2 multicast send</code></pre></div>
-<div class="callout warning"><strong>Docker Desktopの注意：</strong>Windows＋WSL 2ではLinuxコンテナがDocker Desktopの仮想化・NAT層の内側にあります。同一PCの学習には便利ですが、LAN上の実機DDS通信はUbuntuネイティブと同じ挙動にならないことがあります。</div>
+      ROS_DOMAIN_ID: "42"</code></pre><p><code>network_mode: host</code>は主にUbuntuネイティブやJetsonの実機確認で使います。</p></details>
+</section>
 
-</section><section id="step-12" class="module">
-<div class="module-head"><div><p class="step-label">STEP 12</p><h2>WSL＋Ubuntu：実機なしで開発するサンプル</h2><p class="module-summary">疑似LiDAR、RViz2、monitorを使い、開発用デスクトップと複数コンテナ通信を確認します.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-12" type="checkbox">完了</label></div>
-
-<div class="sample-grid"><div class="sample-card"><h3>01_wsl_ubuntu_desktop</h3><p>amd64のDocker Desktop／Ubuntu Engineで動く標準教材です。ブラウザGUI、bind mount、疑似センサー、RViz2を含みます。</p><a class="btn primary" href="examples/01_wsl_ubuntu_desktop/README.md">READMEを開く</a></div><div class="sample-card"><h3>確認できること</h3><ul><li>Dockerfile.dev</li><li>compose.dev / runtime</li><li>ROS 2 bridge network</li><li>noVNC GUI</li><li>fake sensor</li></ul></div></div>
-<div class="code-wrap"><div class="code-title">開始</div><pre><code>cd examples/01_wsl_ubuntu_desktop
-chmod +x *.sh docker/*.sh
+<section class="module" id="step-14">
+<div class="module-head"><div><p class="step-label">STEP 14</p><h2>Windows＋WSL＋Ubuntuで実機なし開発を行う</h2><p class="module-summary">Windowsを普段使いしながら、Linux向けROS 2環境を利用します。</p></div><label class="done-label"><input class="module-done" data-module="step-14" type="checkbox"/>完了</label></div>
+<div class="architecture"><div class="arch-row arch-5"><div class="arch-box"><strong>Windows</strong><br/><span class="small">ブラウザ・VS Code・Docker Desktop</span></div><div class="arch-arrow">→</div><div class="arch-box"><strong>WSL Ubuntu</strong><br/><span class="small">プロジェクトとDocker操作</span></div><div class="arch-arrow">→</div><div class="arch-box"><strong>Linux Container</strong><br/><span class="small">ROS 2開発環境</span></div></div></div>
+<ul><li>プロジェクトはWSL側の<code>~/</code>以下へ置きます。</li><li>Docker DesktopのWSL Integrationを有効にします。</li><li>Docker操作はWSL Ubuntu Terminalから行えます。</li><li>GUIはブラウザDesktopで表示できます。</li></ul>
+<div class="code-wrap"><div class="code-title">標準サンプル</div><pre><code>cd examples/01_wsl_ubuntu_desktop
 ./start-dev.sh</code></pre></div>
-<p>WSLではWindowsブラウザをPowerShell経由で開きます。Ubuntuデスクトップでは <code>xdg-open</code> を使います。</p>
+</section>
 
-</section><section id="step-13" class="module">
-<div class="module-head"><div><p class="step-label">STEP 13</p><h2>WSL＋Jetson想定：実機なしでARM64開発するサンプル</h2><p class="module-summary">Docker Buildx/QEMUでlinux/arm64イメージをbuild・実行し、CPU側のROS 2処理と依存関係を先に検証します.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-13" type="checkbox">完了</label></div>
-
-<div class="sample-grid"><div class="sample-card"><h3>02_wsl_jetson_crossdev</h3><p>Jetsonと同じARM64向けにROS 2 packageをbuildし、疑似センサーとplatform情報を実行します。</p><a class="btn primary" href="examples/02_wsl_jetson_crossdev/README.md">READMEを開く</a></div><div class="sample-card"><h3>実機なしで確認可能</h3><ul><li>arm64 buildが通るか</li><li>依存packageのarm64 availability</li><li>ROS 2 nodeの基本動作</li><li>fake sensorの処理</li></ul></div></div>
-<div class="code-wrap"><div class="code-title">WSL / Docker Desktop</div><pre><code>cd examples/02_wsl_jetson_crossdev
+<section class="module" id="step-15">
+<div class="module-head"><div><p class="step-label">STEP 15</p><h2>Jetson実機なしでARM64向け開発を確認する</h2><p class="module-summary">WSL上でJetsonと同じCPU種類向けのImageを作り、CPU処理を確認します。</p></div><label class="done-label"><input class="module-done" data-module="step-15" type="checkbox"/>完了</label></div>
+<div class="code-wrap"><div class="code-title">Jetson想定サンプル</div><pre><code>cd examples/02_wsl_jetson_crossdev
 ./run-jetson-sim.sh</code></pre></div>
-<div class="callout danger"><strong>確認できないもの：</strong>CUDA、TensorRT、Jetson camera、NVENC/NVDEC、GPIO、実機性能、JetPack/L4Tドライバ整合性はJetson実機が必要です。ARM64 emulationは機能確認用で、性能評価には使えません。</div>
+<div class="grid-2"><div class="card"><h3>実機なしで確認できる</h3><ul><li>ARM64向けImage作成</li><li>ROS 2パッケージのビルド</li><li>CPUだけを使うノード</li><li>基本的なlaunchと通信</li></ul></div><div class="card"><h3>実機で確認が必要</h3><ul><li>Jetson GPU</li><li>CUDA・TensorRT</li><li>Jetsonカメラ・GPIO</li><li>実際の処理速度</li></ul></div></div>
+<details><summary>ARM64、Buildx、エミュレーション</summary><p>一般的なWindows PCとJetsonではCPUの種類が違います。Dockerの複数CPU対応機能を使い、Jetson向け環境をPC上で低速に再現します。</p></details>
+</section>
 
-</section><section id="step-14" class="module">
-<div class="module-head"><div><p class="step-label">STEP 14</p><h2>Ubuntuネイティブで実機ネットワークへ接続する</h2><p class="module-summary">センサー、GPU、DDS、低レイヤのネットワークを扱う最終確認環境です.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-14" type="checkbox">完了</label></div>
-<div class="code-wrap"><div class="code-title">同梱サンプル</div><pre><code>cd examples/03_ubuntu_native_network
+<section class="module" id="step-16">
+<div class="module-head"><div><p class="step-label">STEP 16</p><h2>Ubuntuネイティブ・Jetson実機へ展開する</h2><p class="module-summary">センサー、外部ROS 2、GPUはLinux実機で最終確認します。</p></div><label class="done-label"><input class="module-done" data-module="step-16" type="checkbox"/>完了</label></div>
+<div class="grid-2"><div class="card"><h3>Ubuntuネイティブ</h3><ul><li>外部ロボットとのROS 2通信</li><li>USBカメラ・LiDAR・シリアル</li><li>NVIDIA GPU</li><li>実運用に近いネットワーク</li></ul></div><div class="card"><h3>Jetson</h3><ul><li>ARM64ネイティブ実行</li><li>JetPackに対応したImage</li><li>CUDA・TensorRT</li><li>カメラ・GPIO・実時間性能</li></ul></div></div>
+<div class="code-wrap"><div class="code-title">Ubuntuネイティブ通信サンプル</div><pre><code>cd examples/03_ubuntu_native_network
 ./start-host-network.sh</code></pre></div>
-<p>このサンプルは <code>network_mode: host</code> と <code>ipc: host</code> を使います。Fast DDSのshared memoryをcontainer間で使う場合、networkとIPCを同時に共有する構成が必要になることがあります。</p>
-<div class="callout warning"><strong>Linux専用：</strong>Docker Desktopのhost networkにはLinuxネイティブと異なる制約があります。実機DDSの最終評価はUbuntuネイティブまたはJetsonで行います。</div>
-
-</section><section id="step-15" class="module">
-<div class="module-head"><div><p class="step-label">STEP 15</p><h2>Jetsonへ配布する：ARM64とJetPackを分けて考える</h2><p class="module-summary">通常のUbuntu ARM64コンテナと、Jetson GPU対応コンテナは同じではありません.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-15" type="checkbox">完了</label></div>
-
-<div class="grid-2"><div class="card"><h3>CPU側ROS 2</h3><p>公式ROS imageはamd64とarm64を提供しています。Buildxでmulti-platform imageを作れます。</p></div><div class="card"><h3>Jetson GPU側</h3><p>対象JetPack／Jetson Linuxと互換性のあるNVIDIA image、container runtime、host driverが必要です。</p></div></div>
-<div class="code-wrap"><div class="code-title">multi-platform build</div><pre><code>docker buildx build   --platform linux/amd64,linux/arm64   -t registry.example.com/my-robot:1.0   --push .</code></pre></div>
-<p>同梱の <code>Dockerfile.jetson-gpu.template</code> は、対象機体のJetPackに合う <code>JETSON_BASE_IMAGE</code> を明示して使う雛形です。最新タグを固定で決め打ちしていません。</p>
-
-</section><section id="step-16" class="module">
-<div class="module-head"><div><p class="step-label">STEP 16</p><h2>カメラ・LiDAR・シリアル・GPUを渡す</h2><p class="module-summary">kernel driverと物理認識はhost、ユーザー空間SDKとROS nodeはcontainerへ置きます.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-16" type="checkbox">完了</label></div>
-<div class="code-wrap"><div class="code-title">Compose例</div><pre><code>services:
+<div class="code-wrap"><div class="code-title">機器をContainerへ渡す例</div><pre><code>services:
   camera:
     devices:
       - /dev/video0:/dev/video0
-    group_add:
-      - video
-  serial_driver:
-    devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0
+
   perception:
     gpus: all</code></pre></div>
-<ul><li>udev ruleはhostへ置く。</li><li>最初から <code>privileged: true</code> にせず、必要なdeviceだけ渡す。</li><li>NVIDIA driverはhost、NVIDIA Container Toolkitと対応libraryを使う。</li><li>WSLのUSBはusbipd等の追加経路が必要になるため、実機試験はUbuntuネイティブの方が単純です。</li></ul>
-
-</section><section id="step-17" class="module">
-<div class="module-head"><div><p class="step-label">STEP 17</p><h2>完成判定と推奨プロジェクト構成</h2><p class="module-summary">開発者が変わってもREADMEと1コマンドで再現できることを完成条件にします.</p></div>
-<label class="done-label"><input class="module-done" data-module="step-17" type="checkbox">完了</label></div>
-
-<div class="file-tree">my_robot/
-├── src/
-├── docker/
-│   ├── Dockerfile.dev
-│   ├── Dockerfile.runtime
-│   └── entrypoint.sh
-├── compose.dev.yaml
-├── compose.runtime.yaml
-├── compose.ubuntu-host.yaml
-├── .devcontainer/
-├── config/
-└── README.md</div>
-<ul class="checklist"><li>新しいPCでREADMEだけを見てbuildできる。</li><li>開発環境はブラウザまたはDev Containersで入れる。</li><li>完成版は <code>docker compose up</code> で起動する。</li><li>source、config、rosbag、logがcontainer削除後も残る。</li><li>amd64とarm64のbuildをCIまたはBuildxで確認する。</li><li>実機DDS、GPU、USBはUbuntu／Jetsonで最終確認する。</li></ul>
-
+<div class="callout warning"><strong>最終確認：</strong>センサー認識、LAN上のROS 2通信、GPU処理、処理速度、自動再起動は実機で確認します。</div>
 </section>
-<section class="source-panel"><h2>公式資料・更新確認先</h2><p>本教材は2026年7月時点の公式情報を基準にしています。実運用前に対象バージョンの公式資料を確認してください。</p><ul>
+
+<section class="module" id="step-17">
+<div class="module-head"><div><p class="step-label">STEP 17</p><h2>ROS 2 × Docker開発の最終ワークフロー</h2><p class="module-summary">普段の開発から実機運用までの順番を1つにつなげます。</p></div><label class="done-label"><input class="module-done" data-module="step-17" type="checkbox"/>完了</label></div>
+<ol class="command-steps">
+<li><strong>DockerfileでROS 2と依存ライブラリを定義する</strong></li>
+<li><strong>compose.dev.yamlでGUI・ソース共有・疑似センサーを定義する</strong></li>
+<li><strong>開発環境を起動し、Container内で編集・ビルド・試験する</strong></li>
+<li><strong>同じCompose内でROS 2通信を確認する</strong></li>
+<li><strong>compose.runtime.yamlで完成版の自動起動を定義する</strong></li>
+<li><strong>UbuntuまたはJetsonへImageとCompose設定を移す</strong></li>
+<li><strong>外部通信、USB、GPU、再起動を実機確認する</strong></li>
+</ol>
+<div class="file-tree">my_robot/
+├── src/                       # ROS 2ソース
+├── docker/
+│   ├── Dockerfile.dev         # GUI付き開発環境
+│   └── Dockerfile.runtime     # 完成版環境
+├── compose.dev.yaml           # 開発用設定
+├── compose.runtime.yaml       # 運用用設定
+├── start-dev.sh / .bat        # 開発環境を起動
+├── open-terminal.sh / .bat    # Container内Terminalを開く
+└── stop-dev.sh / .bat         # 開発環境を終了</div>
+<ul class="checklist"><li>Dockerfile、Image、Container、Composeの関係を説明できる。</li><li>Docker単体の操作とComposeの操作を区別できる。</li><li>開発用と完成版の設定を分けられる。</li><li>Container内でROS 2をビルド・実行できる。</li><li>Dockerの通信とROS 2通信を段階的に確認できる。</li><li>WSL、Ubuntu、Jetsonの役割を選べる。</li></ul>
+</section>
+
+<section class="source-panel"><h2>公式資料・更新確認先</h2><p>後半の高度な機能を実運用する場合は、対象バージョンの公式資料も確認してください。</p><ul>
+<li><a href="https://docs.docker.com/get-started/docker-overview/">Docker overview</a></li>
+<li><a href="https://docs.docker.com/reference/dockerfile/">Dockerfile reference</a></li>
+<li><a href="https://docs.docker.com/compose/">Docker Compose</a></li>
 <li><a href="https://docs.docker.com/desktop/features/wsl/">Docker Desktop WSL 2 backend</a></li>
 <li><a href="https://docs.docker.com/desktop/features/wsl/best-practices/">WSL bind mount best practices</a></li>
 <li><a href="https://docs.docker.com/compose/how-tos/networking/">Compose networking</a></li>
 <li><a href="https://docs.docker.com/engine/network/drivers/host/">Host network driver</a></li>
 <li><a href="https://docs.docker.com/build/building/multi-platform/">Multi-platform builds</a></li>
 <li><a href="https://hub.docker.com/_/ros/">ROS Docker Official Image</a></li>
-<li><a href="https://docs.ros.org/en/rolling/Releases/Release-Lyrical-Luth.html">ROS 2 Lyrical Luth</a></li>
 <li><a href="https://docs.ros.org/en/rolling/How-To-Guides/Installation-Troubleshooting.html">ROS 2 multicast troubleshooting</a></li>
-<li><a href="https://fast-dds.docs.eprosima.com/en/latest/docker/shm_docker.html">Fast DDS shared memory in Docker</a></li>
 <li><a href="https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html">NVIDIA Container Toolkit</a></li>
-</ul></section></main></div><footer>ROS 2 × Docker 開発・配布実践コース · 進捗はブラウザのlocalStorageへ保存されます。</footer></body></html>
+</ul></section>
+</main></div>
+<footer>ROS 2 × Docker 基礎から実機開発まで · 教材版 Layout v4 · 進捗はブラウザのlocalStorageへ保存されます。</footer>
+</body></html>

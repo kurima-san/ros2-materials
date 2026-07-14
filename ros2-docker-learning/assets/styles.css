@@ -364,9 +364,11 @@ footer { padding: 26px 24px 50px; color: var(--muted); text-align: center; }
 .badge-row { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 18px; }
 .badge { display:inline-flex; align-items:center; padding:5px 10px; border:1px solid var(--line); border-radius:999px; background:var(--surface-3); color:var(--muted); font-size:.82rem; }
 .architecture { display:grid; gap:10px; margin:18px 0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--code); overflow-x:auto; }
-.arch-row { display:grid; grid-template-columns:minmax(150px, .7fr) 42px minmax(240px, 1.3fr); align-items:center; gap:10px; min-width:600px; }
-.arch-box { padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2); }
-.arch-arrow { text-align:center; color:var(--accent); font-weight:900; }
+.arch-row { display:grid; align-items:stretch; gap:10px; width:100%; }
+.arch-row.arch-5 { grid-template-columns:minmax(170px, 1fr) 58px minmax(190px, 1fr) 58px minmax(190px, 1fr); min-width:780px; }
+.arch-row.arch-3 { grid-template-columns:minmax(220px, 1fr) 86px minmax(220px, 1fr); min-width:560px; }
+.arch-box { min-width:0; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2); overflow-wrap:anywhere; }
+.arch-arrow { display:grid; place-items:center; min-width:0; text-align:center; color:var(--accent); font-weight:900; }
 .sample-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; margin:18px 0; }
 .sample-card { display:flex; flex-direction:column; gap:10px; padding:20px; border:1px solid var(--line); border-radius:14px; background:var(--surface-2); }
 .sample-card h3,.sample-card h4 { margin:0; }
@@ -376,3 +378,41 @@ footer { padding: 26px 24px 50px; color: var(--muted); text-align: center; }
 .small { color:var(--muted); font-size:.9rem; }
 .path { overflow-wrap:anywhere; }
 @media (max-width: 780px) { .sample-grid { grid-template-columns:1fr; } }
+
+/* Beginner-first additions */
+.answer-box{border:2px solid var(--accent,#4f7cff);border-radius:16px;padding:1rem 1.2rem;margin:1rem 0;background:rgba(79,124,255,.08)}
+.answer-box h3{margin-top:0}.answer-box p:last-child{margin-bottom:0}
+.command-steps{counter-reset:item;padding-left:0;list-style:none}.command-steps>li{border:1px solid var(--line,#d9dee8);border-radius:14px;padding:1rem 1rem 1rem 3.4rem;margin:.9rem 0;position:relative}.command-steps>li:before{counter-increment:item;content:counter(item);position:absolute;left:1rem;top:1rem;width:1.7rem;height:1.7rem;border-radius:50%;display:grid;place-items:center;background:var(--accent,#4f7cff);color:#fff;font-weight:700}.command-steps pre{margin-bottom:0}
+details{border:1px solid var(--line,#d9dee8);border-radius:12px;padding:.8rem 1rem;margin:1rem 0}details summary{cursor:pointer;font-weight:700}details[open] summary{margin-bottom:.8rem}
+
+/* Goal flow v3 fallback */
+.goal-flow-v3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:stretch; gap:12px; margin:18px 0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--code); }
+.goal-stage-v3 { min-width:0; padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--surface-2); overflow-wrap:break-word; word-break:normal; }
+.goal-stage-v3 strong { display:block; margin:3px 0 8px; font-size:1.05rem; line-height:1.35; }
+.goal-stage-v3 span:last-child { display:block; color:var(--muted); line-height:1.65; }
+.goal-kicker-v3 { display:inline-block; color:var(--accent); font-size:.76rem; font-weight:800; letter-spacing:.08em; }
+@media (max-width:760px) { .goal-flow-v3 { grid-template-columns:minmax(0,1fr); } }
+
+
+/* Layout v4: STEP 00 fixed three-stage goal layout */
+#step-0 .goal-flow-v3 {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-auto-flow: row !important;
+  align-items: stretch !important;
+  gap: 16px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+#step-0 .goal-stage-v3 {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  writing-mode: horizontal-tb !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+}
+#step-0 .goal-stage-v3 * { writing-mode: horizontal-tb !important; }
+@media (max-width: 760px) {
+  #step-0 .goal-flow-v3 { grid-template-columns: minmax(0, 1fr) !important; }
+}
