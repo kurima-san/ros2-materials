@@ -1,0 +1,4 @@
+ROS2_SLAM_Navigation_HTML_Course
+Version: 1.0
+Build: ros2-slam-navigation-html-course-v1-20260728
+Source date: 2026-07-28
