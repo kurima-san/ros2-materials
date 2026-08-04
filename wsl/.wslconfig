@@ -1,0 +1,6 @@
+[wsl2]
+#networkingMode=mirrored
+networkingMode=nat
+dnsTunneling=true
+firewall=false
+autoProxy=true
