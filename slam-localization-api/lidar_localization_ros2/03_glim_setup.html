@@ -17,28 +17,74 @@
 <div class="ok"><strong>今回の推奨:</strong> Ubuntu 22.04 + CUDA 12.6 なら、GTSAM / gtsam_points / GLIMを個別にsource buildせず、Koide公式PPAのCUDA 12.6版を使います。</div>
 <p>GLIM v1.2.2はGTSAM 4.3a1関連の修正も含み、Ubuntu 22.04/24.04、CUDA 12.2/12.6/13.1でテストされています。</p>
 
-<h3>3.1 NVIDIA / CUDA確認</h3>
+<h3>3.1 NVIDIA GPU・ドライバの確認</h3>
+<p>CUDA対応のNVIDIA GPUとドライバが先に必要です。まずGPUが認識されているか確認します。</p>
+<pre><code>lspci | grep -i nvidia
+nvidia-smi
+</code></pre>
+<p><code>nvidia-smi</code> が表示できない場合は、Ubuntuの推奨ドライバを導入して再起動します。</p>
+<pre><code>sudo apt update
+sudo apt install -y ubuntu-drivers-common
+ubuntu-drivers devices
+sudo ubuntu-drivers install
+sudo reboot
+</code></pre>
+<div class="note"><code>nvidia-smi</code> に表示される「CUDA Version」は、ドライバが対応できるCUDAの上限であり、CUDA Toolkit（<code>nvcc</code>）のインストール済みバージョンではありません。</div>
+
+<h3>3.2 CUDA 12.6 Toolkitのセットアップ（Ubuntu 22.04 / x86_64）</h3>
+<p>GLIMのPPAパッケージ名と揃えるため、ここではCUDA 12.6を導入します。NVIDIA公式APTリポジトリを登録し、バージョン固定のToolkitパッケージをインストールします。</p>
+<pre><code>cd /tmp
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo apt update
+sudo apt install -y cuda-toolkit-12-6
+</code></pre>
+<p>シェルからCUDA 12.6を使えるようにします。</p>
+<pre><code>cat &lt;&lt;'EOF' &gt;&gt; ~/.bashrc
+export PATH=/usr/local/cuda-12.6/bin${PATH:+:${PATH}}
+export LD_LIBRARY_PATH=/usr/local/cuda-12.6/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+EOF
+source ~/.bashrc
+</code></pre>
+<div class="note"><code>cuda-toolkit-12-6</code> はToolkitのみを導入します。上でUbuntu推奨ドライバを導入済みなら、ドライバを同梱する <code>cuda-12-6</code> へ置き換える必要はありません。</div>
+
+<h3>3.3 CUDAの動作確認</h3>
 <pre><code>nvidia-smi
 nvcc -V
-readlink -f /usr/local/cuda 2>/dev/null || true
+readlink -f /usr/local/cuda 2&gt;/dev/null || true
 </code></pre>
+<p><code>nvcc -V</code> に <code>release 12.6</code> と表示され、<code>nvidia-smi</code> がGPUを表示できれば次へ進みます。必要ならサンプルも実行します。</p>
+<pre><code>git clone --depth 1 --branch v12.6 https://github.com/NVIDIA/cuda-samples.git ~/cuda-samples
+cmake -S ~/cuda-samples/Samples/1_Utilities/deviceQuery \
+      -B ~/cuda-samples/build/deviceQuery
+cmake --build ~/cuda-samples/build/deviceQuery -j$(nproc)
+~/cuda-samples/build/deviceQuery/deviceQuery
+</code></pre>
+<div class="ok">最後に <code>Result = PASS</code> と表示されれば、ToolkitからGPUを利用できています。</div>
 <div class="warn">以前source buildした <code>/usr/local/lib/libgtsam*</code> とPPA版を混在させると、ABI違いによるundefined symbolの原因になります。PPA運用とsource運用は混ぜないでください。</div>
 <pre><code>ldconfig -p | grep -E 'gtsam|gtsam_points'
-ls -l /usr/local/lib/libgtsam* /usr/local/lib/libgtsam_points* 2>/dev/null || true
+ls -l /usr/local/lib/libgtsam* /usr/local/lib/libgtsam_points* 2&gt;/dev/null || true
 </code></pre>
 
-<h3>3.2 Koide PPA</h3>
+<h3>3.4 Koide PPAからGLIMをインストール</h3>
 <pre><code>sudo apt update
 sudo apt install -y curl gpg
 curl -s https://koide3.github.io/ppa/setup_ppa.sh | sudo bash
 
 sudo apt update
-sudo apt install -y   libiridescence-dev   libboost-all-dev   libglfw3-dev   libmetis-dev   libgtsam-points-cuda12.6-dev   ros-humble-glim-ros-cuda12.6
+sudo apt install -y \
+  libiridescence-dev \
+  libboost-all-dev \
+  libglfw3-dev \
+  libmetis-dev \
+  libgtsam-points-cuda12.6-dev \
+  ros-humble-glim-ros-cuda12.6
 
 sudo ldconfig
 </code></pre>
 
-<h3>3.3 GLIM設定</h3>
+<h3>3.5 GLIM設定（フィルタなしの基本構成）</h3>
+
 <p>GLIMは <code>config_ros.json</code> でpoints/IMU topicを指定します。パッケージ内設定を直接編集するより、
 ローカルconfigをコピーして <code>config_path</code> で絶対パス指定すると管理しやすいです。</p>
 <pre><code>mkdir -p ~/glim_config
@@ -51,7 +97,20 @@ cp -r /opt/ros/humble/share/glim/config/* ~/glim_config/ 2>/dev/null || true
 <div class="note">実際のインストール先は <code>ros2 pkg prefix glim</code> / <code>ros2 pkg prefix glim_ros</code> で確認してください。</div>
 
 
-<h3>3.4 GLIMへ渡す前に同行者・近距離点を除外</h3>
+<h3>3.6 リアルタイムMapping（基本）</h3>
+<pre><code>source /opt/ros/humble/setup.bash
+source ~/livox_ws/install/setup.bash
+
+ros2 run glim_ros glim_rosnode   --ros-args -p config_path:=$(realpath ~/glim_config)
+</code></pre>
+
+<h3>3.7 rosbagからMapping（基本）</h3>
+<p><code>glim_rosbag</code> はbagを直接読み、データdropを避けながら再生速度を調整します。</p>
+<pre><code>ros2 run glim_ros glim_rosbag ~/workspace/ros_bag/atr_out   --ros-args -p config_path:=$(realpath ~/glim_config)
+</code></pre>
+
+<h3>3.8 【オプション】同行者・近距離点を除外</h3>
+<div class="note"><strong>この節は任意です。</strong> 通常は3.5〜3.7のとおり <code>/livox/lidar</code> をGLIMへ直接入力してください。同行者や保持者が地図へ写り込み、後編集では対処しにくい場合だけ、このフィルタを追加します。GLIMの利用に必須ではありません。</div>
 
 <p>センサを持つ人とPCを持つ人が一緒に歩き、
 PCを持つ人がMID-360に対してほぼ同じ相対位置にいた場合、
@@ -167,26 +226,15 @@ Livox固有の intensity/tag/line/timestamp を落とさない。</div>
 <p><code>0.0</code>なら無効。建物規模に合わせて設定する。</p>
 
 
-<h3>3.5 リアルタイムMapping</h3>
-<pre><code>source /opt/ros/humble/setup.bash
-source ~/livox_ws/install/setup.bash
 
-ros2 run glim_ros glim_rosnode   --ros-args -p config_path:=$(realpath ~/glim_config)
-</code></pre>
-
-<h3>3.6 rosbagからMapping</h3>
-<p><code>glim_rosbag</code> はbagを直接読み、データdropを避けながら再生速度を調整します。</p>
-<pre><code>ros2 run glim_ros glim_rosbag ~/workspace/ros_bag/atr_out   --ros-args -p config_path:=$(realpath ~/glim_config)
-</code></pre>
-
-<h3>3.7 Mapping結果</h3>
+<h3>3.9 Mapping結果</h3>
 <p>標準では終了時に <code>/tmp/dump</code> にmapping dumpが保存されます。</p>
 <pre><code>ros2 run glim_ros offline_viewer
 </code></pre>
 <p><strong>File → Open Map</strong> でdumpを開き、必要ならloop constraint等を修正後、
 <strong>File → Save → Export Points</strong> で点群をPLYとして出力します。</p>
 
-<h3>3.8 PLY → PCD</h3>
+<h3>3.10 PLY → PCD</h3>
 <pre><code>sudo apt install -y pcl-tools
 
 pcl_ply2pcd atr_out_points.ply atr_out_points.pcd
@@ -195,6 +243,57 @@ pcl_ply2pcd atr_out_points.ply atr_out_points.pcd
 <pre><code>~/ros2_ws/src/lidar_localization_ros2/map/atr_out_points.pcd
 </code></pre>
 <p>などに置き、Localization YAMLの <code>map_path</code> と一致させます。</p>
+</section>
+
+<section class="page"><h2>CUDAを完全にアンインストールする</h2>
+<div class="danger"><strong>注意:</strong> 以下はCUDA、NVIDIAドライバ、設定ファイルまで削除する完全削除手順です。GPUを使う他のソフトウェアも動かなくなります。Toolkitだけ入れ直す場合は「Toolkitのみ」を選び、ドライバ削除は行わないでください。</div>
+
+<h3>APTで導入したCUDA Toolkitのみを削除</h3>
+<pre><code>sudo apt --purge remove 'cuda-toolkit-*' 'cuda-compiler-*' 'cuda-libraries-*' \
+  'cuda-nvcc-*' 'cuda-cudart-*' 'libcublas-*' 'libcufft-*' 'libcurand-*' \
+  'libcusolver-*' 'libcusparse-*' 'libnpp-*' 'libnvjitlink-*' 'nsight-*'
+sudo apt autoremove --purge -y
+sudo apt autoclean
+</code></pre>
+
+<h3>完全削除する場合（Toolkit + NVIDIAドライバ）</h3>
+<p>上のToolkit削除に続けて実行します。画面表示にNVIDIA GPUを使っている環境では、再起動後に別の表示ドライバが必要になることがあります。</p>
+<pre><code>sudo apt --purge remove 'cuda-*' 'libcuda*' 'nvidia-*' 'libnvidia-*'
+sudo apt autoremove --purge -y
+sudo apt autoclean
+</code></pre>
+
+<h3>Runfile版を使っていた場合</h3>
+<p>APT版とRunfile版では削除方法が異なります。ファイルが存在する場合だけ、インストール済みRunfile付属のアンインストーラを使います。</p>
+<pre><code>if [ -x /usr/local/cuda-12.6/bin/cuda-uninstaller ]; then
+  sudo /usr/local/cuda-12.6/bin/cuda-uninstaller
+fi
+if command -v nvidia-uninstall &gt;/dev/null 2&gt;&amp;1; then
+  sudo nvidia-uninstall
+fi
+</code></pre>
+
+<h3>リポジトリ・残存ファイル・環境変数を削除</h3>
+<pre><code>sudo rm -f /etc/apt/sources.list.d/cuda*.list
+sudo rm -f /etc/apt/preferences.d/cuda-repository-pin-600
+sudo rm -f /usr/share/keyrings/cuda-archive-keyring.gpg
+sudo rm -rf /var/cuda-repo-*
+sudo rm -rf /usr/local/cuda /usr/local/cuda-*
+sudo apt update
+
+# 3.2で追記した2行を削除
+sed -i '\|^export PATH=/usr/local/cuda-12\.6/bin|d' ~/.bashrc
+sed -i '\|^export LD_LIBRARY_PATH=/usr/local/cuda-12\.6/lib64|d' ~/.bashrc
+unset LD_LIBRARY_PATH
+hash -r
+sudo reboot
+</code></pre>
+<p>再起動後、完全削除できたことを確認します。</p>
+<pre><code>command -v nvcc || echo "nvcc: removed"
+dpkg -l | grep -Ei 'cuda|cublas|cufft|curand|cusolver|cusparse|nvidia' || true
+ls -ld /usr/local/cuda* 2&gt;/dev/null || echo "/usr/local/cuda*: removed"
+</code></pre>
+<div class="note">GLIMのCUDA版も不要なら、先に <code>sudo apt purge ros-humble-glim-ros-cuda12.6 libgtsam-points-cuda12.6-dev</code> を実行してください。CUDAを再導入する場合は再起動後に3.1からやり直します。</div>
 </section>
 
 <section class="page"><h2>Source buildが必要な場合</h2>
