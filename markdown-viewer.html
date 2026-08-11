@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown資料 | ROS 2 学習教材</title>
+  <style>
+    body { margin: 0; color: #202735; background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif; line-height: 1.75; }
+    nav { position: sticky; top: 0; z-index: 2; padding: 11px max(18px, calc((100% - 960px) / 2)); border-bottom: 1px solid #d8dee8; background: rgba(255,255,255,.95); backdrop-filter: blur(8px); }
+    nav a { color: #0969da; font-weight: 600; text-decoration: none; }
+    main { width: min(960px, calc(100% - 32px)); min-height: 70vh; margin: 24px auto 60px; padding: clamp(22px, 5vw, 54px); border: 1px solid #dfe3e8; border-radius: 10px; background: #fff; box-shadow: 0 5px 22px rgba(20,40,70,.07); }
+    h1, h2 { padding-bottom: .3em; border-bottom: 1px solid #dfe3e8; line-height: 1.35; } h1 { margin-top: 0; } h2 { margin-top: 1.7em; }
+    h3, h4 { margin-top: 1.5em; line-height: 1.4; } a { color: #0969da; } img { max-width: 100%; }
+    pre { overflow: auto; padding: 16px; border-radius: 7px; background: #161b22; color: #e6edf3; line-height: 1.5; }
+    code { padding: .15em .35em; border-radius: 4px; background: #eff1f3; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .9em; }
+    pre code { padding: 0; background: none; color: inherit; }
+    blockquote { margin-left: 0; padding: 2px 18px; color: #59636e; border-left: 4px solid #b9c2cc; }
+    table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; } th, td { padding: 7px 11px; border: 1px solid #cfd6df; } th { background: #f2f5f8; }
+    hr { height: 1px; margin: 28px 0; border: 0; background: #d8dee8; } .error { color: #b42318; }
+  </style>
+</head>
+<body>
+  <nav><a href="./">← 教材一覧へ戻る</a></nav>
+  <main id="content" aria-live="polite">資料を読み込んでいます……</main>
+  <script>
+    const content = document.getElementById("content");
+    const file = new URLSearchParams(location.search).get("file") || "";
+    const escapeHtml = value => value.replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+    function inline(text) {
+      return escapeHtml(text)
+        .replace(/!\[([^\]]*)\]\(([^\s)]+)(?:\s+&quot;[^&]*&quot;)?\)/g, '<img src="$2" alt="$1">')
+        .replace(/\[([^\]]+)\]\(([^\s)]+)(?:\s+&quot;[^&]*&quot;)?\)/g, '<a href="$2">$1</a>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    }
+    function renderMarkdown(markdown) {
+      const lines = markdown.replace(/\r/g, "").split("\n");
+      let html = "", paragraph = [], list = null, quote = [], inCode = false, code = [], language = "";
+      const flushParagraph = () => { if (paragraph.length) { html += `<p>${inline(paragraph.join(" "))}</p>`; paragraph = []; } };
+      const flushList = () => { if (list) { html += `</${list}>`; list = null; } };
+      const flushQuote = () => { if (quote.length) { html += `<blockquote>${inline(quote.join(" "))}</blockquote>`; quote = []; } };
+      for (let index = 0; index < lines.length; index++) {
+        const line = lines[index];
+        if (inCode) { if (/^```/.test(line)) { html += `<pre><code${language ? ` class="language-${escapeHtml(language)}"` : ""}>${escapeHtml(code.join("\n"))}</code></pre>`; inCode = false; code = []; } else code.push(line); continue; }
+        const fence = line.match(/^```\s*([\w+-]*)/); if (fence) { flushParagraph(); flushList(); flushQuote(); inCode = true; language = fence[1]; continue; }
+        const heading = line.match(/^(#{1,6})\s+(.+)$/); if (heading) { flushParagraph(); flushList(); flushQuote(); const level = heading[1].length; html += `<h${level}>${inline(heading[2].replace(/\s+#+$/, ""))}</h${level}>`; continue; }
+        if (/^\s*(---+|___+|\*\*\*+)\s*$/.test(line)) { flushParagraph(); flushList(); flushQuote(); html += "<hr>"; continue; }
+        if (/^>\s?/.test(line)) { flushParagraph(); flushList(); quote.push(line.replace(/^>\s?/, "")); continue; } else flushQuote();
+        const item = line.match(/^\s*([-+*]|\d+\.)\s+(.+)$/); if (item) { flushParagraph(); const kind = /\d/.test(item[1]) ? "ol" : "ul"; if (list !== kind) { flushList(); html += `<${kind}>`; list = kind; } html += `<li>${inline(item[2])}</li>`; continue; } else flushList();
+        if (/^\|.*\|\s*$/.test(line) && index + 1 < lines.length && /^\|?\s*:?-+/.test(lines[index + 1])) {
+          flushParagraph(); const rows = [line]; index += 2; while (index < lines.length && /^\|.*\|\s*$/.test(lines[index])) rows.push(lines[index++]); index--;
+          const cells = row => row.replace(/^\||\|\s*$/g, "").split("|").map(cell => cell.trim());
+          html += "<table><thead><tr>" + cells(rows[0]).map(cell => `<th>${inline(cell)}</th>`).join("") + "</tr></thead><tbody>";
+          html += rows.slice(1).map(row => "<tr>" + cells(row).map(cell => `<td>${inline(cell)}</td>`).join("") + "</tr>").join("") + "</tbody></table>"; continue;
+        }
+        if (!line.trim()) flushParagraph(); else paragraph.push(line.trim());
+      }
+      flushParagraph(); flushList(); flushQuote(); if (inCode) html += `<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`; return html;
+    }
+    async function load() {
+      if (!file || !file.toLowerCase().endsWith(".md") || file.split("/").some(part => part === "..") || /(^|\/)readme\.md$/i.test(file)) {
+        content.innerHTML = '<p class="error">表示できるMarkdown資料が指定されていません。</p>'; return;
+      }
+      try {
+        const response = await fetch(new URL(file, location.href)); if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        content.innerHTML = renderMarkdown(await response.text());
+        const documentBase = new URL("./", response.url);
+        content.querySelectorAll("a[href], img[src]").forEach(element => {
+          const attribute = element.hasAttribute("href") ? "href" : "src";
+          const value = element.getAttribute(attribute);
+          if (value && !/^(?:[a-z]+:|#|\/)/i.test(value)) element.setAttribute(attribute, new URL(value, documentBase));
+        });
+        const firstHeading = content.querySelector("h1"); if (firstHeading) document.title = `${firstHeading.textContent} | ROS 2 学習教材`;
+      } catch (error) { content.innerHTML = `<p class="error">資料を読み込めませんでした。Webサーバー経由で開いてください。</p><p><code>${escapeHtml(String(error))}</code></p>`; }
+    }
+    load();
+  </script>
+</body>
+</html>
