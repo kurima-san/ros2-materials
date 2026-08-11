@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+LIDAR_TOPIC="${1:-/livox/lidar}"
+IMU_TOPIC="${2:-/livox/imu}"
+echo "=== $LIDAR_TOPIC ==="
+timeout 5 ros2 topic hz "$LIDAR_TOPIC" || true
+echo
+echo "=== $IMU_TOPIC ==="
+timeout 5 ros2 topic hz "$IMU_TOPIC" || true

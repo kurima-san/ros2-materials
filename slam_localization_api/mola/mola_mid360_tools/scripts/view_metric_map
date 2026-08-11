@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-if [[ $# -ne 1 ]]; then
-  echo "Usage: ros2 run mola_mid360_tools view_metric_map MAP.mm"
-  exit 2
-fi
-exec mm-viewer -l libmola_metric_maps.so "$1"
