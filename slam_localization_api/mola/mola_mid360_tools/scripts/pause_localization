@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-ros2 service call /mola_runtime_param_set mola_msgs/srv/MolaRuntimeParamSet \
-  "{parameters: \"mola::LidarOdometry:lidar_odom:\\n  active: false\\n\"}"

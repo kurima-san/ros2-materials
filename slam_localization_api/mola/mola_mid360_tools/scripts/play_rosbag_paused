@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-if [[ $# -ne 1 ]]; then
-  echo "Usage: ros2 run mola_mid360_tools play_rosbag_paused BAG_PATH"
-  exit 2
-fi
-exec ros2 bag play "$1" --clock --pause

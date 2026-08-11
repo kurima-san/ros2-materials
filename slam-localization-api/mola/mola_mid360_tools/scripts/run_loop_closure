@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $# -lt 3 ]]; then
+  echo "Usage: ros2 run mola_mid360_tools run_loop_closure INPUT.simplemap OUTPUT.simplemap EXTERNALS_DIR"
+  exit 2
+fi
+PIPELINE="$(ros2 pkg prefix --share mola_sm_loop_closure)/pipelines/loop-closure-lidar3d-gicp.yaml"
+exec mola-sm-lc-cli -i "$1" -o "$2" -p "$PIPELINE" --externals-dir "$3"

@@ -1,0 +1,131 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4. lidar_localization_ros2 セットアップ | MID-360 Localization Guide</title>
+<link rel="stylesheet" href="assets/style.css"></head><body>
+<header class="topbar"><div class="inner"><div class="badge">Ubuntu 22.04 / ROS 2 Humble / Livox MID-360</div>
+<h1>4. lidar_localization_ros2 セットアップ</h1><p>Livox → GLIMでマップ作成 → lidar_localization_ros2で位置推定、までを一貫して扱う手順書</p></div></header>
+<div class="layout"><nav class="sidebar"><strong>章メニュー</strong><a href="index.html">トップ / 全体メニュー</a><a href="01_architecture.html">1. 全体構成</a><a href="02_livox_setup.html">2. Livox MID-360 セットアップ</a><a href="03_glim_setup.html">3. GLIM セットアップ・マップ作成</a><a href="04_lidar_localization_setup.html" class="active">4. lidar_localization_ros2 セットアップ</a><a href="05_map_generation.html">5. 2Dマップ生成・修正</a><a href="06_rviz_files.html">6. 専用Launch・RViz</a><a href="07_realtime.html">7. リアルタイム運用</a><a href="08_rosbag.html">8. rosbag運用</a><a href="09_recovery.html">9. 途中失敗時の復旧</a><a href="10_diagnostics.html">10. 診断・トラブル対処</a><a href="11_navigation.html">11. Nav2ナビゲーション</a><a href="12_auto_relocalization.html">12. 自動再ローカリゼーション</a><a href="13_reference.html">13. 参考情報</a><hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
+<strong>同梱設定</strong>
+<a href="mid360_handheld_localization.launch.py">統合Launch</a>
+<a href="mid360_handheld.yaml">Localization YAML</a>
+<a href="mid360_handheld.rviz">RViz設定</a>
+<a href="fix/CMakeLists.txt">動作確認済み CMakeLists.txt</a>
+<a href="fix/ndt_omp_target_link_fix.patch">最小CMakeパッチ</a>
+</nav><main class="main"><div class="breadcrumb"><a href="index.html">トップ</a> / 4. lidar_localization_ros2 セットアップ</div>
+
+<section class="page"><h2>4. lidar_localization_ros2 セットアップ</h2>
+
+<div class="danger"><strong>この環境で確認された重要事項:</strong>
+upstream の現行 CMakeLists.txt のままではビルドできず、同梱の
+<a href="fix/CMakeLists.txt"><strong>動作確認済み CMakeLists.txt</strong></a>
+に置き換えることでビルドできた。したがって本資料では、この差分を既知のビルド問題として扱う。</div>
+
+<h3>4.1 問題の本質: ndt_omp_ros2 のリンク方法</h3>
+<p>問題箇所は、optional pybind11 backend <code>g2_ndt_score</code> のリンク。
+upstream 側は legacy-style の変数を参照している:</p>
+
+<pre><code>target_include_directories(g2_ndt_score PRIVATE
+  include
+  ${PCL_INCLUDE_DIRS}
+  ${ndt_omp_ros2_INCLUDE_DIRS})
+
+target_link_libraries(g2_ndt_score PRIVATE
+  ${ndt_omp_ros2_LIBRARIES}
+  ${PCL_LIBRARIES})
+</code></pre>
+
+<p>一方、この環境でビルド成功したCMakeは <strong>export済みCMake targetを直接リンク</strong>する:</p>
+
+<pre><code>target_include_directories(g2_ndt_score PRIVATE
+  include
+  ${PCL_INCLUDE_DIRS}
+)
+
+target_link_libraries(g2_ndt_score PRIVATE
+  ndt_omp_ros2::ndt_omp
+  ${PCL_LIBRARIES}
+)
+</code></pre>
+
+<div class="note"><strong>なぜこちらが妥当か:</strong>
+<code>ndt_omp_ros2</code> 自身は <code>ndt_omp</code> libraryを
+<code>install(... EXPORT export_ndt_omp ...)</code> し、
+<code>ament_export_targets(export_ndt_omp HAS_LIBRARY_TARGET)</code> でexportしている。
+一方、<code>ndt_omp_ros2_LIBRARIES</code> / <code>ndt_omp_ros2_INCLUDE_DIRS</code> のような
+legacy変数を明示的にexportする構成ではない。このため、consumer側ではexport target
+<code>ndt_omp_ros2::ndt_omp</code> を使う方が確実。</div>
+
+<h3>4.2 添付CMakeの扱い</h3>
+<p>この資料一式には、実際にビルド成功したCMakeをそのまま保存している。</p>
+<pre><code>fix/CMakeLists.txt
+fix/ndt_omp_target_link_fix.patch
+</code></pre>
+
+<p>既存ファイルをバックアップして置き換える場合:</p>
+<pre><code>cd ~/ros2_ws/src/lidar_localization_ros2
+
+cp CMakeLists.txt CMakeLists.txt.original
+cp /path/to/guide/fix/CMakeLists.txt CMakeLists.txt
+</code></pre>
+
+<p>上流CMakeへの変更を最小限にしたい場合は、同梱patchの
+<code>g2_ndt_score</code> 部分だけを適用する。</p>
+
+<h3>4.3 Clone / dependency</h3>
+<pre><code>source /opt/ros/humble/setup.bash
+
+cd ~/ros2_ws/src
+git clone https://github.com/rsasaki0109/lidar_localization_ros2.git
+
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -r -y
+</code></pre>
+
+<h3>4.4 修正版CMakeでクリーンビルド</h3>
+<pre><code>cd ~/ros2_ws
+
+rm -rf \
+  build/lidar_localization_ros2 \
+  install/lidar_localization_ros2
+
+source /opt/ros/humble/setup.bash
+
+colcon build \
+  --symlink-install \
+  --packages-select lidar_localization_ros2 \
+  --event-handlers console_direct+
+
+source install/setup.bash
+</code></pre>
+
+<h3>4.5 ビルド後確認</h3>
+<pre><code>ros2 pkg prefix lidar_localization_ros2
+
+ls -l \
+  ~/ros2_ws/install/lidar_localization_ros2/share/lidar_localization_ros2/local_setup.*
+
+ros2 pkg executables lidar_localization_ros2
+</code></pre>
+
+<div class="ok"><strong>ここでの整理:</strong>
+<code>ament_package()</code> は添付版にもupstream版にも存在するため、
+今回の主原因は「ament package化されていないこと」ではない。
+<strong>ndt_omp_ros2をlegacy変数経由でリンクしていたconsumer側CMakeが問題</strong>で、
+namespaced imported targetへ変更したことで解消した、と整理する。</div>
+
+<h3>4.6 optional backendとの関係</h3>
+<p>この問題箇所は次の条件内にある:</p>
+<pre><code>if(pybind11_FOUND AND Python3_Development.Module_FOUND)
+  ...
+  pybind11_add_module(g2_ndt_score ...)
+  ...
+endif()
+</code></pre>
+<p>そのため、pybind11 / Python Development.Moduleが見つからない環境では
+<code>g2_ndt_score</code> 自体がbuildされず、問題が表面化しない場合がある。
+逆に必要依存が揃った環境ほど、このリンク不備に到達する。</p>
+</section>
+
+<div class="pager"><a href="03_glim_setup.html">← 3. GLIM セットアップ・マップ作成</a><a href="05_map_generation.html">5. 2Dマップ生成・修正 →</a></div></main></div>
+<footer>Livox MID-360 + GLIM + lidar_localization_ros2 Guide</footer>
+<script src="assets/site.js"></script></body></html>

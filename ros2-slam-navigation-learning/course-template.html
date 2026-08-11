@@ -1,0 +1,229 @@
+<!doctype html>
+<!-- BUILD: ros2-slam-navigation-learning-v1.1-20260811 -->
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ROS 2 HumbleでSLAM・Localization・Navigation2をつなぐ仕組みを、TF、Topic、Odometry、2D/3D/Visual SLAMの比較から段階的に学ぶオフラインHTML教材">
+  <meta name="theme-color" content="#0b1020">
+  <title>ROS 2 SLAM・Localization・Navigation2 学習教材</title>
+  <link rel="stylesheet" href="assets/fonts.css">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <span class="eyebrow">ROS 2 HUMBLE · INTEGRATION COURSE · OFFLINE</span>
+        <h1>SLAM・Localization・Navigationを<br>役割から理解する</h1>
+        <p class="hero-lead">アルゴリズムの数式よりも、センサー、Odom、TF、SLAM、Localization、Nav2、ロボット制御が何を入出力し、どこを担当するのかを学ぶ教材です。</p>
+        <div class="badge-row" aria-label="教材の対象">
+          <span class="badge">Ubuntu 22.04</span>
+          <span class="badge">ROS 2 Humble</span>
+          <span class="badge">2D・3D・Visual SLAM</span>
+          <span class="badge">Livox手持ちMapping</span>
+        </div>
+        <div class="hero-actions">
+          <a class="btn primary" href="#course-start">学習を始める</a>
+          <a class="btn" href="#quick-reference">接続の全体像を見る</a>
+          <button class="btn ghost" id="printButton" type="button">印刷・PDF保存</button>
+        </div>
+      </div>
+
+      <div class="hero-diagram" aria-label="ROS 2ナビゲーションの基本TF構造">
+        <p class="diagram-caption">Nav2が期待する基本TF</p>
+        <div class="tf-stack">
+          <div class="tf-node map-node"><span>大域補正</span><strong>map</strong></div>
+          <div class="tf-edge"><b>↓</b><span>SLAM / Localization</span></div>
+          <div class="tf-node odom-node"><span>連続座標</span><strong>odom</strong></div>
+          <div class="tf-edge"><b>↓</b><span>Wheel・Leg・LIO・VIO</span></div>
+          <div class="tf-node base-node"><span>ロボット本体</span><strong>base_link</strong></div>
+          <div class="tf-edge"><b>↓</b><span>URDF / Static TF</span></div>
+          <div class="tf-node sensor-node"><span>観測</span><strong>sensor frame</strong></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" aria-label="教材ナビゲーション">
+      <div class="sidebar-top">
+        <div>
+          <p class="sidebar-kicker">COURSE NAVIGATION</p>
+          <h2>学習メニュー</h2>
+        </div>
+        <button class="icon-button" id="themeButton" type="button" aria-label="表示テーマを切り替える" title="表示テーマを切り替える">☼</button>
+      </div>
+
+      <div class="progress-shell">
+        <div class="progress-meta">
+          <span>進捗</span>
+          <strong id="progressPercent">0%</strong>
+        </div>
+        <div class="progress-track" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
+        <div class="progress-text" id="progressText">0 / 20 章完了</div>
+      </div>
+
+      <label for="searchBox">教材内検索</label>
+      <input id="searchBox" type="search" placeholder="例：map → odom、GLIM、QoS">
+      <p class="search-status" id="searchStatus" aria-live="polite"></p>
+
+      <label for="topicFilter">表示する内容</label>
+      <select id="topicFilter">
+        <option value="all">すべての章</option>
+        <option value="foundation">基礎と方式比較</option>
+        <option value="integration">TF・Topic・Nav2接続</option>
+        <option value="practice">段階別の実習</option>
+        <option value="handheld">手持ちMapping</option>
+        <option value="deployment">Bringup・デバッグ・合格基準</option>
+        <option value="reference">学習コース・資料・要点</option>
+      </select>
+
+      <nav class="nav-list" id="navList" aria-label="章一覧"></nav>
+
+      <button class="reset-button" id="resetProgress" type="button">進捗をリセット</button>
+    </aside>
+
+    <main id="main">
+      <section class="course-intro" id="course-start">
+        <div class="section-title-row">
+          <div>
+            <p class="step-label">COURSE GUIDE</p>
+            <h2>最初に全体の役割を分ける</h2>
+          </div>
+          <span class="time-chip">目安 4〜6時間</span>
+        </div>
+        <p>移動ロボットのアプリケーションでは、地図作成、自己位置推定、自律移動を別の機能として接続します。最初に3つの目的と入出力を区別してから、TFや個別のアルゴリズムへ進みます。</p>
+
+        <div class="goal-grid" aria-label="SLAM、Localization、Navigationの役割">
+          <article class="goal-card">
+            <span class="goal-icon" aria-hidden="true">01</span>
+            <div><h3>SLAM：地図を作る</h3><p>未知環境のセンサー観測とOdometryからMapを作り、保存します。主に地図作成時に使います。</p></div>
+          </article>
+          <article class="goal-card">
+            <span class="goal-icon" aria-hidden="true">02</span>
+            <div><h3>Localization：現在位置を知る</h3><p>保存済みMapと現在のセンサー観測を照合し、ロボットの現在位置を推定します。</p></div>
+          </article>
+          <article class="goal-card">
+            <span class="goal-icon" aria-hidden="true">03</span>
+            <div><h3>Navigation：自律移動を計画する</h3><p>Map、現在位置、目的地から経路と動作を計画し、速度指令をRobot Controlへ渡します。</p></div>
+          </article>
+        </div>
+
+        <div class="truth-grid">
+          <div class="truth-card info"><strong>地図作成段階と通常運用段階を分ける</strong><p>最初はSLAMでMapを作ります。通常運用ではSLAMを止め、LocalizationとNavigationを同時に動かします。Navigationが地図や現在位置を作るわけではありません。</p></div>
+        </div>
+
+        <div class="roadmap" aria-label="学習の流れ">
+          <div class="roadmap-card"><span>PHASE 1</span><strong>役割を理解</strong><p>SLAM、Localization、Navigation、Odometryの違い</p></div>
+          <div class="roadmap-arrow">→</div>
+          <div class="roadmap-card"><span>PHASE 2</span><strong>接続を理解</strong><p>Topic、TF、時刻、QoS、TF所有者</p></div>
+          <div class="roadmap-arrow">→</div>
+          <div class="roadmap-card"><span>PHASE 3</span><strong>段階的に実装</strong><p>SLAM → Localization → Nav2</p></div>
+          <div class="roadmap-arrow">→</div>
+          <div class="roadmap-card"><span>PHASE 4</span><strong>方式を拡張</strong><p>Livox、Visual SLAM、複数LiDAR</p></div>
+        </div>
+
+        <div class="goal-grid">
+          <article class="goal-card">
+            <span class="goal-icon" aria-hidden="true">01</span>
+            <div><h3>入力と出力を説明できる</h3><p>各ノードが受け取るTopic、PublishするTF、保存する地図形式を区別する。</p></div>
+          </article>
+          <article class="goal-card">
+            <span class="goal-icon" aria-hidden="true">02</span>
+            <div><h3>TF所有者を決められる</h3><p><code>map → odom</code>と<code>odom → base_link</code>を誰がPublishするか設計する。</p></div>
+          </article>
+          <article class="goal-card">
+            <span class="goal-icon" aria-hidden="true">03</span>
+            <div><h3>目的に応じてSLAMを選べる</h3><p>2D、3D LiDAR、Visual SLAMをセンサー要件とNav2接続で比較する。</p></div>
+          </article>
+          <article class="goal-card">
+            <span class="goal-icon" aria-hidden="true">04</span>
+            <div><h3>不具合を上流から切り分けられる</h3><p>センサー → TF → Odom → Localization → Costmap → 制御の順に確認する。</p></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="quick-reference" id="quick-reference">
+        <div class="section-title-row">
+          <div>
+            <p class="step-label">SYSTEM OVERVIEW</p>
+            <h2>接続の全体像</h2>
+          </div>
+          <span class="time-chip accent">最重要</span>
+        </div>
+
+        <div class="system-flow" aria-label="センサーからロボット制御までのデータ経路">
+          <div class="system-node"><span>観測</span><strong>Sensor</strong><small>LiDAR・Camera・IMU</small></div>
+          <div class="system-arrow">→</div>
+          <div class="system-node"><span>連続姿勢</span><strong>Odometry</strong><small>Wheel・Leg・LO・LIO・VIO</small></div>
+          <div class="system-arrow">→</div>
+          <div class="system-node"><span>大域位置</span><strong>SLAM / Localization</strong><small>Mapとmap → odom</small></div>
+          <div class="system-arrow">→</div>
+          <div class="system-node"><span>経路と指令</span><strong>Navigation2</strong><small>Path・Costmap・cmd_vel</small></div>
+          <div class="system-arrow">→</div>
+          <div class="system-node"><span>移動</span><strong>Robot Control</strong><small>Drive・Gait・Whole Body</small></div>
+        </div>
+
+        <div class="truth-grid">
+          <div class="truth-card good"><strong>車輪Odomは必須ではない</strong><p>LIOやVIOが、滑らかな連続姿勢を生成できれば代替できる。</p></div>
+          <div class="truth-card warning"><strong>IMU単独は位置Odomにならない</strong><p>通常はLiDARやカメラと組み合わせ、ドリフトを抑える。</p></div>
+          <div class="truth-card info"><strong>3D SLAMだけで3D走行にはならない</strong><p>Nav2用2D地図、Costmap、階段・足場の上位制御を別途設計する。</p></div>
+        </div>
+      </section>
+
+      <article class="course-content" id="courseContent">
+$body$
+      </article>
+
+      <section class="knowledge-check" id="knowledge-check">
+        <div class="section-title-row">
+          <div>
+            <p class="step-label">KNOWLEDGE CHECK</p>
+            <h2>最後に接続の要点を確認する</h2>
+          </div>
+          <span class="time-chip">全3問</span>
+        </div>
+
+        <div class="quiz" data-answer="b" data-explanation="IMU単独の加速度積分では誤差が急速に蓄積します。LiDAR＋IMUのLIOやCamera＋IMUのVIOとして使うのが基本です。">
+          <p class="quiz-number">QUESTION 1</p>
+          <h3>車輪オドメトリがないロボットでは、IMU単独を<code>odom → base_link</code>として長時間使えばよい？</h3>
+          <label><input type="radio" name="quiz-1" value="a"> はい。IMUだけで安定した位置を計算できる</label>
+          <label><input type="radio" name="quiz-1" value="b"> いいえ。LIOやVIOなど、別の観測と組み合わせる</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
+
+        <div class="quiz" data-answer="a" data-explanation="SLAM中はSLAM、保存地図ではAMCLや3D Localizerなどが大域補正を担当します。同じTFを複数ノードが同時にPublishしてはいけません。">
+          <p class="quiz-number">QUESTION 2</p>
+          <h3><code>map → odom</code>を主にPublishするのはどの役割？</h3>
+          <label><input type="radio" name="quiz-2" value="a"> SLAMまたはLocalization</label>
+          <label><input type="radio" name="quiz-2" value="b"> センサードライバまたはモータードライバ</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
+
+        <div class="quiz" data-answer="b" data-explanation="GLIMの3D地図と6DoF姿勢だけでは、標準Nav2の2D Costmapを満たしません。2D投影地図や別の2D地図、障害物入力、TF Adapterを設計します。">
+          <p class="quiz-number">QUESTION 3</p>
+          <h3>GLIMで3D地図が作成できれば、標準Nav2がそのまま3D経路を計画する？</h3>
+          <label><input type="radio" name="quiz-3" value="a"> はい。3D点群を自動的に経路地図として使う</label>
+          <label><input type="radio" name="quiz-3" value="b"> いいえ。Nav2用地図・Costmap・TF接続を別途用意する</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <footer class="course-footer">
+        <p>ROS 2 SLAM・Localization・Navigation2 学習教材</p>
+        <p>対象：Ubuntu 22.04 / ROS 2 Humble · 情報確認日：2026-07-28</p>
+      </footer>
+    </main>
+  </div>
+
+  <button class="to-top" id="toTopButton" type="button" aria-label="ページ先頭へ戻る">↑</button>
+  <script src="assets/mermaid.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
