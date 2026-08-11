@@ -1,0 +1,50 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6. 専用Launch・RViz | MID-360 Localization Guide</title>
+<link rel="stylesheet" href="assets/style.css"></head><body>
+<header class="topbar"><div class="inner"><div class="badge">Ubuntu 22.04 / ROS 2 Humble / Livox MID-360</div>
+<h1>6. 専用Launch・RViz</h1><p>Livox → GLIMでマップ作成 → lidar_localization_ros2で位置推定、までを一貫して扱う手順書</p></div></header>
+<div class="layout"><nav class="sidebar"><strong>章メニュー</strong><a href="index.html">トップ / 全体メニュー</a><a href="01_architecture.html">1. 全体構成</a><a href="02_livox_setup.html">2. Livox MID-360 セットアップ</a><a href="03_glim_setup.html">3. GLIM セットアップ・マップ作成</a><a href="04_lidar_localization_setup.html">4. lidar_localization_ros2 セットアップ</a><a href="05_map_generation.html">5. 2Dマップ生成・修正</a><a href="06_rviz_files.html" class="active">6. 専用Launch・RViz</a><a href="07_realtime.html">7. リアルタイム運用</a><a href="08_rosbag.html">8. rosbag運用</a><a href="09_recovery.html">9. 途中失敗時の復旧</a><a href="10_diagnostics.html">10. 診断・トラブル対処</a><a href="11_navigation.html">11. Nav2ナビゲーション</a><a href="12_auto_relocalization.html">12. 自動再ローカリゼーション</a><a href="13_reference.html">13. 参考情報</a><hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
+<strong>同梱設定</strong>
+<a href="mid360_handheld_localization.launch.py">統合Launch</a>
+<a href="mid360_handheld.yaml">Localization YAML</a>
+<a href="mid360_handheld.rviz">RViz設定</a>
+<a href="fix/CMakeLists.txt">動作確認済み CMakeLists.txt</a>
+<a href="fix/ndt_omp_target_link_fix.patch">最小CMakeパッチ</a>
+</nav><main class="main"><div class="breadcrumb"><a href="index.html">トップ</a> / 6. 専用Launch・RViz</div>
+
+<section class="page"><h2>6. 専用Launch・RViz</h2>
+<h3>5.1 ファイル配置</h3>
+<pre><code>cp mid360_handheld_localization.launch.py   ~/ros2_ws/src/lidar_localization_ros2/launch/
+
+cp mid360_handheld.yaml   ~/ros2_ws/src/lidar_localization_ros2/param/
+
+cp mid360_handheld.rviz   ~/ros2_ws/src/lidar_localization_ros2/param/
+
+cd ~/ros2_ws
+colcon build --symlink-install --packages-select lidar_localization_ros2
+source install/setup.bash
+</code></pre>
+
+<h3>5.2 統合Launch</h3>
+<p>統合Launchは <code>world → map</code> static TF、localizer本体、RVizを同時に起動します。</p>
+
+<h3>5.3 RViz</h3>
+<table><tr><th>項目</th><th>設定</th></tr>
+<tr><td>Fixed Frame</td><td><code>map</code></td></tr>
+<tr><td>Initial Map</td><td>PointCloud2 <code>/initial_map</code>, Reliable, Transient Local</td></tr>
+<tr><td>Livox Scan</td><td>PointCloud2 <code>/livox/lidar</code></td></tr>
+<tr><td>Path</td><td><code>/path</code></td></tr>
+<tr><td>TF</td><td><code>world → map → livox_frame</code></td></tr></table>
+
+<h3>5.4 カメラ追従</h3>
+<pre><code>Views
+  Current View
+    Type: Orbit
+    Target Frame: livox_frame
+</code></pre>
+<p><code>Fixed Frame=map</code> は変更しません。</p>
+</section>
+<div class="pager"><a href="05_map_generation.html">← 5. 2Dマップ生成・修正</a><a href="07_realtime.html">7. リアルタイム運用 →</a></div></main></div>
+<footer>Livox MID-360 + GLIM + lidar_localization_ros2 Guide</footer>
+<script src="assets/site.js"></script></body></html>

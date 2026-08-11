@@ -1,0 +1,25 @@
+Nav2 robot-side interface checklist (MID-360 + lidar_localization_ros2)
+
+Required robot-side outputs:
+  /odom                    nav_msgs/msg/Odometry
+  odom -> base_link        TF, smooth and continuous
+  base_link -> livox_frame TF, measured sensor extrinsics
+  /livox/lidar             sensor_msgs/msg/PointCloud2
+  /livox/imu               sensor_msgs/msg/Imu
+
+Required robot-side input:
+  /cmd_vel                 geometry_msgs/msg/Twist
+                            Convert this to the robot's walking/base controller.
+
+Localization output:
+  map -> odom              lidar_localization_ros2
+  /localization/pose_with_covariance
+
+Maps:
+  3D PCD / PLY             lidar_localization_ros2 registration map
+  2D YAML + PGM/PNG        Nav2 static/global costmap
+
+Do NOT publish duplicate transforms:
+  - localizer owns map -> odom in Nav2 mode
+  - robot odometry owns odom -> base_link
+  - URDF/robot_state_publisher or one static TF publisher owns base_link -> sensors

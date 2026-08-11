@@ -1,0 +1,111 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2. Livox MID-360 セットアップ | MID-360 Localization Guide</title>
+<link rel="stylesheet" href="assets/style.css"></head><body>
+<header class="topbar"><div class="inner"><div class="badge">Ubuntu 22.04 / ROS 2 Humble / Livox MID-360</div>
+<h1>2. Livox MID-360 セットアップ</h1><p>Livox → GLIMでマップ作成 → lidar_localization_ros2で位置推定、までを一貫して扱う手順書</p></div></header>
+<div class="layout"><nav class="sidebar"><strong>章メニュー</strong><a href="index.html">トップ / 全体メニュー</a><a href="01_architecture.html">1. 全体構成</a><a href="02_livox_setup.html" class="active">2. Livox MID-360 セットアップ</a><a href="03_glim_setup.html">3. GLIM セットアップ・マップ作成</a><a href="04_lidar_localization_setup.html">4. lidar_localization_ros2 セットアップ</a><a href="05_map_generation.html">5. 2Dマップ生成・修正</a><a href="06_rviz_files.html">6. 専用Launch・RViz</a><a href="07_realtime.html">7. リアルタイム運用</a><a href="08_rosbag.html">8. rosbag運用</a><a href="09_recovery.html">9. 途中失敗時の復旧</a><a href="10_diagnostics.html">10. 診断・トラブル対処</a><a href="11_navigation.html">11. Nav2ナビゲーション</a><a href="12_auto_relocalization.html">12. 自動再ローカリゼーション</a><a href="13_reference.html">13. 参考情報</a><hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
+<strong>同梱設定</strong>
+<a href="mid360_handheld_localization.launch.py">統合Launch</a>
+<a href="mid360_handheld.yaml">Localization YAML</a>
+<a href="mid360_handheld.rviz">RViz設定</a>
+<a href="fix/CMakeLists.txt">動作確認済み CMakeLists.txt</a>
+<a href="fix/ndt_omp_target_link_fix.patch">最小CMakeパッチ</a>
+</nav><main class="main"><div class="breadcrumb"><a href="index.html">トップ</a> / 2. Livox MID-360 セットアップ</div>
+
+<section class="page"><h2>2. Livox MID-360 セットアップ</h2>
+<div class="note">公式 Livox ROS Driver 2 は Ubuntu 22.04 / ROS 2 Humble をサポートしています。PointCloud2で使用するため <strong>rviz_MID360_launch.py</strong> 系を使います。</div>
+
+<h3>2.1 ネットワーク</h3>
+<p>公式のMID-360サンプル設定は LiDAR <code>192.168.1.12</code>、PC側 <code>192.168.1.5</code> です。
+使用環境に合わせてNICとJSONを揃えます。</p>
+<pre><code>ip addr
+
+# 例: 有線NICを 192.168.1.5/24 に設定
+# NetworkManager GUIで設定してもよい
+</code></pre>
+
+<h3>2.2 Livox-SDK2</h3>
+<pre><code>sudo apt update
+sudo apt install -y cmake git
+
+cd ~/workspace
+git clone https://github.com/Livox-SDK/Livox-SDK2.git
+cd Livox-SDK2
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+</code></pre>
+
+<h3>2.3 livox_ros_driver2</h3>
+<div class="warn"><strong>重要:</strong> 公式 <code>build.sh humble</code> はワークスペースの <code>../../build</code> と <code>../../install</code> を削除します。
+他パッケージが入った <code>~/ros2_ws</code> では実行せず、Livox専用ワークスペースを使う方が安全です。</div>
+<pre><code>mkdir -p ~/livox_ws/src
+cd ~/livox_ws/src
+git clone https://github.com/Livox-SDK/livox_ros_driver2.git
+
+source /opt/ros/humble/setup.bash
+cd ~/livox_ws/src/livox_ros_driver2
+./build.sh humble
+
+source ~/livox_ws/install/setup.bash
+</code></pre>
+
+<h3>2.4 MID360_config.json</h3>
+<pre><code>~/livox_ws/src/livox_ros_driver2/config/MID360_config.json
+</code></pre>
+<p>少なくともPC側IPとLiDAR IPを実ネットワークに合わせます。</p>
+<pre><code>"host_net_info": {
+  "cmd_data_ip"   : "192.168.1.5",
+  "point_data_ip" : "192.168.1.5",
+  "imu_data_ip"   : "192.168.1.5"
+},
+"lidar_configs": [
+  { "ip" : "192.168.1.12" }
+]
+</code></pre>
+
+<h3>2.5 起動</h3>
+<pre><code>source /opt/ros/humble/setup.bash
+source ~/livox_ws/install/setup.bash
+
+ros2 launch livox_ros_driver2 rviz_MID360_launch.py
+</code></pre>
+<p>このlaunchは <code>xfer_format=0</code> で PointCloud2をPublishし、<code>frame_id=livox_frame</code> が標準設定です。</p>
+
+<h3>2.6 確認</h3>
+<pre><code>ros2 topic list | grep livox
+ros2 topic type /livox/lidar
+ros2 topic type /livox/imu
+ros2 topic hz /livox/lidar
+ros2 topic hz /livox/imu
+ros2 topic echo /livox/lidar --once --field header
+</code></pre>
+<p>Localization用には <code>/livox/lidar = sensor_msgs/msg/PointCloud2</code> が必須です。</p>
+
+<h3>2.7 最短距離・同行者領域の除外はどこで設定するか</h3>
+
+<div class="note"><strong>結論:</strong>
+今回のMID-360では、同行者やセンサ保持者を消す設定は
+<strong>MID-360本体のJSONではなくROS2側のPointCloud2フィルタ</strong>で行う。
+Livox ROS Driver 2の公式READMEにある <code>blind_spot_set</code> は
+<strong>HAP LiDARのみ</strong>の設定で、MID-360の設定例にはない。</div>
+
+<table>
+<tr><th>処理</th><th>設定場所</th><th>用途</th></tr>
+<tr><td>Livox通信/IP/出力形式</td><td><code>MID360_config.json</code></td><td>センサ・ドライバ設定</td></tr>
+<tr><td>全方向の最短距離</td><td>ROS2 pre-filter</td><td>手・腕・センサ保持具など近距離点を除外</td></tr>
+<tr><td>同行者の固定相対領域</td><td>ROS2 CropBox</td><td>PCを持って並走する人を除外</td></tr>
+<tr><td>Localization時の近距離除外</td><td><code>scan_min_range</code></td><td>lidar_localization_ros2入力scanの距離フィルタ</td></tr>
+</table>
+
+<div class="warn"><strong><code>scan_min_range</code> はGLIMのmapping入力には効かない。</strong>
+これはlidar_localization_ros2側の設定なので、
+GLIM地図から人物を消したい場合はGLIMへ入る前の
+<code>/livox/lidar</code> をフィルタする。</div>
+</section>
+<div class="pager"><a href="01_architecture.html">← 1. 全体構成</a><a href="03_glim_setup.html">3. GLIM セットアップ・マップ作成 →</a></div></main></div>
+<footer>Livox MID-360 + GLIM + lidar_localization_ros2 Guide</footer>
+<script src="assets/site.js"></script></body></html>

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $# -lt 2 ]]; then
+  echo "Usage: ros2 run mola_mid360_tools map_rosbag_to_simplemap BAG_PATH OUTPUT.simplemap"
+  exit 2
+fi
+BAG_PATH="$1"
+OUTPUT="$(realpath -m "$2")"
+mkdir -p "$(dirname "$OUTPUT")"
+MOLA_MINIMUM_RANGE_FILTER=0.1 \
+MOLA_GENERATE_SIMPLEMAP=true \
+MOLA_SIMPLEMAP_OUTPUT="$OUTPUT" \
+MOLA_SIMPLEMAP_MIN_XYZ=0.2 \
+MOLA_SIMPLEMAP_MIN_NEARBY_POSES=2 \
+MOLA_MIN_NEARBY_POSES_OCCUPIED=2 \
+MOLA_SIMPLEMAP_GENERATE_LAZY_LOAD=true \
+MOLA_LO_INITIAL_LOCALIZATION_METHOD="InitLocalization::PitchAndRollFromIMU" \
+MOLA_DESKEW_METHOD="MotionCompensationMethod::IMU" \
+MOLA_IMU_TOPIC="/livox/imu" \
+MOLA_LIDAR_TOPIC="/livox/lidar" \
+MOLA_TF_BASE_LINK="livox_frame" \
+MOLA_USE_FIXED_LIDAR_POSE=true \
+MOLA_USE_FIXED_IMU_POSE=true \
+exec mola-lo-gui-rosbag2 "$BAG_PATH"
