@@ -85,10 +85,10 @@ ros2 topic echo /livox/lidar --once --field header
 </code></pre>
 <p>Localization用には <code>/livox/lidar = sensor_msgs/msg/PointCloud2</code> が必須です。</p>
 
-<h3>2.7 最短距離・同行者領域の除外はどこで設定するか</h3>
+<h3>2.7 【オプション】最短距離・同行者領域を除外する場合</h3>
 
-<div class="note"><strong>結論:</strong>
-今回のMID-360では、同行者やセンサ保持者を消す設定は
+<div class="note"><strong>この処理は任意です。</strong> 通常は生の <code>/livox/lidar</code> をそのまま利用できます。
+地図への写り込みを抑える必要がある場合、同行者やセンサ保持者を消す設定は
 <strong>MID-360本体のJSONではなくROS2側のPointCloud2フィルタ</strong>で行う。
 Livox ROS Driver 2の公式READMEにある <code>blind_spot_set</code> は
 <strong>HAP LiDARのみ</strong>の設定で、MID-360の設定例にはない。</div>
@@ -103,8 +103,8 @@ Livox ROS Driver 2の公式READMEにある <code>blind_spot_set</code> は
 
 <div class="warn"><strong><code>scan_min_range</code> はGLIMのmapping入力には効かない。</strong>
 これはlidar_localization_ros2側の設定なので、
-GLIM地図から人物を消したい場合はGLIMへ入る前の
-<code>/livox/lidar</code> をフィルタする。</div>
+GLIM地図から人物を消したい場合に限り、GLIMへ入る前の
+<code>/livox/lidar</code> をフィルタする。基本手順と任意フィルタの使い分けは3章を参照する。</div>
 </section>
 <div class="pager"><a href="01_architecture.html">← 1. 全体構成</a><a href="03_glim_setup.html">3. GLIM セットアップ・マップ作成 →</a></div></main></div>
 <footer>Livox MID-360 + GLIM + lidar_localization_ros2 Guide</footer>
