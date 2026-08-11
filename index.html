@@ -3,233 +3,65 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>ROS 2 学習教材</title>
-
   <style>
-    body {
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 40px 24px;
-      font-family:
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        "Noto Sans JP",
-        sans-serif;
-      color: #222;
-      background: #f5f7fa;
-    }
-
-    h1 {
-      margin-bottom: 8px;
-    }
-
-    .description {
-      margin-bottom: 32px;
-      color: #555;
-    }
-
-    #status {
-      color: #666;
-    }
-
-    .course-list {
-      display: grid;
-      grid-template-columns:
-        repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
-      padding: 0;
-      list-style: none;
-    }
-
-    .course {
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      transition: box-shadow 0.2s, transform 0.2s;
-    }
-
-    .course:hover {
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-      transform: translateY(-2px);
-    }
-
-    .course a {
-      display: block;
-      padding: 20px;
-      color: #0969da;
-      text-decoration: none;
-    }
-
-    .course-title {
-      display: block;
-      margin-bottom: 8px;
-      font-size: 18px;
-      font-weight: bold;
-    }
-
-    .folder-name {
-      color: #666;
-      font-size: 13px;
-      word-break: break-all;
-    }
-
-    .error {
-      padding: 16px;
-      color: #b00020;
-      background: #fff0f0;
-      border: 1px solid #e0a0a0;
-      border-radius: 6px;
-    }
+    :root { color-scheme: light; --ink: #172033; --muted: #5d687b; --line: #dce2eb; --accent: #0969da; --panel: #fff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: #f4f7fb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif; line-height: 1.65; }
+    header { padding: 56px 24px 48px; color: #fff; background: linear-gradient(135deg, #14284b, #075fb5); }
+    header > div, main { width: min(1120px, 100%); margin: auto; }
+    h1 { margin: 0 0 8px; font-size: clamp(2rem, 5vw, 3rem); }
+    header p { max-width: 700px; margin: 0; color: #e6f1ff; font-size: 1.08rem; }
+    main { padding: 32px 24px 64px; }
+    .notice { margin: 0 0 28px; padding: 14px 18px; border: 1px solid #b9d6f5; border-radius: 10px; background: #eaf4ff; }
+    .group { margin: 0 0 34px; }
+    .group-heading { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; border-bottom: 2px solid var(--line); }
+    h2 { margin: 0; padding-bottom: 7px; font-size: 1.35rem; }
+    .folder { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .82rem; }
+    .materials { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .material a { display: block; height: 100%; padding: 17px 18px; color: inherit; text-decoration: none; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 2px 8px rgba(20, 40, 75, .04); transition: transform .15s, box-shadow .15s, border-color .15s; }
+    .material a:hover, .material a:focus-visible { transform: translateY(-2px); border-color: #86b7ea; box-shadow: 0 7px 18px rgba(20, 40, 75, .12); outline: none; }
+    .title { display: block; color: var(--accent); font-weight: 700; }
+    .path { display: block; margin-top: 5px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .76rem; overflow-wrap: anywhere; }
+    .tag { display: inline-block; margin-right: 7px; padding: 1px 6px; color: #42526a; border-radius: 4px; background: #edf1f6; font-size: .68rem; vertical-align: 1px; }
+    @media (max-width: 520px) { header { padding-top: 38px; } .group-heading { display: block; } .folder { display: block; margin: -5px 0 8px; } }
   </style>
 </head>
-
 <body>
-  <h1>ROS 2 学習教材</h1>
+  <header><div>
+    <h1>ROS 2 学習教材</h1>
+    <p>環境構築、センシング、SLAM、自己位置推定、Navigation 2の資料を、サブディレクトリ内の資料も含めて一覧表示しています。</p>
+  </div></header>
+  <main>
+    <p class="notice">Markdown資料は専用ビューアーでHTMLとして表示します。各フォルダーの案内用READMEは一覧から除外しています。</p>
 
-  <p class="description">
-    公開中のROS 2教材を一覧表示しています。
-  </p>
+    <section class="group">
+      <div class="group-heading"><h2>SLAM・自己位置推定API</h2><span class="folder">slam-localization-api</span></div>
+      <ul class="materials">
+        <li class="material"><a href="slam-localization-api/GLIM_lidar_localization_MOLA_comparison_20260811.html"><span class="title"><span class="tag">比較</span>GLIM・lidar_localization・MOLA比較</span><span class="path">GLIM_lidar_localization_MOLA_comparison_20260811.html</span></a></li>
+        <li class="material"><a href="slam-localization-api/lidar_localization_ros2/"><span class="title"><span class="tag">全13章</span>lidar_localization_ros2 実践ガイド</span><span class="path">lidar_localization_ros2/index.html</span></a></li>
+        <li class="material"><a href="slam-localization-api/mola/mola_mid360_setup_localization_guide.html"><span class="title"><span class="tag">MOLA</span>MID-360セットアップ・自己位置推定</span><span class="path">mola/mola_mid360_setup_localization_guide.html</span></a></li>
+      </ul>
+    </section>
 
-  <p id="status">教材を読み込んでいます……</p>
-  <ul id="course-list" class="course-list"></ul>
+    <section class="group">
+      <div class="group-heading"><h2>ROS 2 学習コース</h2><span class="folder">learning courses</span></div>
+      <ul class="materials">
+        <li class="material"><a href="ros2-docker-learning/"><span class="title">Dockerを利用したROS 2開発環境</span><span class="path">ros2-docker-learning/index.html</span></a></li>
+        <li class="material"><a href="markdown-viewer.html?file=ros2-docker-learning%2FBEGINNER_GUIDE.md"><span class="title"><span class="tag">Markdown</span>Docker教材・初心者向けガイド</span><span class="path">ros2-docker-learning/BEGINNER_GUIDE.md</span></a></li>
+        <li class="material"><a href="markdown-viewer.html?file=ros2-docker-learning%2FNETWORKING.md"><span class="title"><span class="tag">Markdown</span>Docker環境のネットワーク構成</span><span class="path">ros2-docker-learning/NETWORKING.md</span></a></li>
+        <li class="material"><a href="ros2-slam-navigation-learning/"><span class="title">SLAM・Localization・Navigation 2入門</span><span class="path">ros2-slam-navigation-learning/index.html</span></a></li>
+      </ul>
+    </section>
 
-  <script>
-    const OWNER = "kurima-san";
-
-    // 実際のGitHubリポジトリ名に合わせる
-    const REPOSITORY = "ros2-materials";
-
-    // GitHub Pagesで公開しているブランチ
-    const BRANCH = "main";
-
-    // 一覧から除外するフォルダ
-    const EXCLUDED_DIRECTORIES = [
-      ".github",
-      "assets",
-      "css",
-      "js"
-    ];
-
-    const apiUrl =
-      `https://api.github.com/repos/${OWNER}/${REPOSITORY}/contents/` +
-      `?ref=${BRANCH}`;
-
-    const pagesBaseUrl =
-      `https://${OWNER}.github.io/${REPOSITORY}/`;
-
-    async function hasIndexHtml(directoryName) {
-      const url =
-        `https://api.github.com/repos/${OWNER}/${REPOSITORY}/contents/` +
-        `${encodeURIComponent(directoryName)}/index.html?ref=${BRANCH}`;
-
-      const response = await fetch(url);
-      return response.ok;
-    }
-
-    async function getPageTitle(directoryName) {
-      const pageUrl =
-        pagesBaseUrl +
-        encodeURIComponent(directoryName) +
-        "/";
-
-      try {
-        const response = await fetch(pageUrl);
-
-        if (!response.ok) {
-          return directoryName;
-        }
-
-        const html = await response.text();
-        const documentData =
-          new DOMParser().parseFromString(html, "text/html");
-
-        return documentData.title.trim() || directoryName;
-      } catch {
-        return directoryName;
-      }
-    }
-
-    async function loadCourses() {
-      const status = document.getElementById("status");
-      const courseList = document.getElementById("course-list");
-
-      try {
-        const response = await fetch(apiUrl);
-
-        if (!response.ok) {
-          throw new Error(
-            `GitHub API error: ${response.status}`
-          );
-        }
-
-        const repositoryItems = await response.json();
-
-        const directories = repositoryItems
-          .filter(item => item.type === "dir")
-          .filter(item =>
-            !EXCLUDED_DIRECTORIES.includes(item.name)
-          )
-          .sort((a, b) =>
-            a.name.localeCompare(b.name, "ja")
-          );
-
-        const courses = [];
-
-        for (const directory of directories) {
-          if (await hasIndexHtml(directory.name)) {
-            const title = await getPageTitle(directory.name);
-
-            courses.push({
-              name: directory.name,
-              title: title,
-              url:
-                pagesBaseUrl +
-                encodeURIComponent(directory.name) +
-                "/"
-            });
-          }
-        }
-
-        if (courses.length === 0) {
-          status.textContent =
-            "公開されている教材が見つかりませんでした。";
-          return;
-        }
-
-        status.remove();
-
-        for (const course of courses) {
-          const listItem = document.createElement("li");
-          listItem.className = "course";
-
-          const link = document.createElement("a");
-          link.href = course.url;
-
-          const title = document.createElement("span");
-          title.className = "course-title";
-          title.textContent = course.title;
-
-          const folderName = document.createElement("span");
-          folderName.className = "folder-name";
-          folderName.textContent = course.name;
-
-          link.appendChild(title);
-          link.appendChild(folderName);
-          listItem.appendChild(link);
-          courseList.appendChild(listItem);
-        }
-      } catch (error) {
-        status.className = "error";
-        status.textContent =
-          "教材一覧を取得できませんでした。";
-
-        console.error(error);
-      }
-    }
-
-    loadCourses();
-  </script>
+    <section class="group">
+      <div class="group-heading"><h2>セットアップ・トラブルシュート</h2><span class="folder">ptz-cam / python-virtual-env / wsl</span></div>
+      <ul class="materials">
+        <li class="material"><a href="markdown-viewer.html?file=ptz-cam%2FArducam_IMX477_PiZero2W_USB_UVC_ROS2_TCP.md"><span class="title"><span class="tag">Markdown</span>Arducam IMX477・ROS 2 TCP接続</span><span class="path">ptz-cam/Arducam_IMX477_PiZero2W_USB_UVC_ROS2_TCP.md</span></a></li>
+        <li class="material"><a href="markdown-viewer.html?file=python-virtual-env%2FROS2_PythonVirtual.md"><span class="title"><span class="tag">Markdown</span>ROS 2でのPython仮想環境</span><span class="path">python-virtual-env/ROS2_PythonVirtual.md</span></a></li>
+        <li class="material"><a href="markdown-viewer.html?file=wsl%2FWSL2%E3%83%9F%E3%83%A9%E3%83%BC%E3%83%A2%E3%83%BC%E3%83%89%E3%81%A7ROS%202%20CLI%E3%81%8C%E5%81%9C%E6%AD%A2%E3%81%99%E3%82%8B%E5%95%8F%E9%A1%8C%E3%81%A8%E5%AF%BE%E5%87%A6%E6%96%B9%E6%B3%95.md"><span class="title"><span class="tag">Markdown</span>WSL 2ミラーモードでROS 2 CLIが停止する問題</span><span class="path">wsl/WSL2ミラーモードでROS 2 CLIが停止する問題と対処方法.md</span></a></li>
+      </ul>
+    </section>
+  </main>
 </body>
 </html>
