@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>ROS 2 学習教材</title>
+
+  <style>
+    body {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 40px 24px;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        "Noto Sans JP",
+        sans-serif;
+      color: #222;
+      background: #f5f7fa;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+    }
+
+    .description {
+      margin-bottom: 32px;
+      color: #555;
+    }
+
+    #status {
+      color: #666;
+    }
+
+    .course-list {
+      display: grid;
+      grid-template-columns:
+        repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .course {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+
+    .course:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      transform: translateY(-2px);
+    }
+
+    .course a {
+      display: block;
+      padding: 20px;
+      color: #0969da;
+      text-decoration: none;
+    }
+
+    .course-title {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .folder-name {
+      color: #666;
+      font-size: 13px;
+      word-break: break-all;
+    }
+
+    .error {
+      padding: 16px;
+      color: #b00020;
+      background: #fff0f0;
+      border: 1px solid #e0a0a0;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>ROS 2 学習教材</h1>
+
+  <p class="description">
+    公開中のROS 2教材を一覧表示しています。
+  </p>
+
+  <p id="status">教材を読み込んでいます……</p>
+  <ul id="course-list" class="course-list"></ul>
+
+  <script>
+    const OWNER = "kurima-san";
+
+    // 実際のGitHubリポジトリ名に合わせる
+    const REPOSITORY = "ros2-materials";
+
+    // GitHub Pagesで公開しているブランチ
+    const BRANCH = "main";
+
+    // 一覧から除外するフォルダ
+    const EXCLUDED_DIRECTORIES = [
+      ".github",
+      "assets",
+      "css",
+      "js"
+    ];
+
+    const apiUrl =
+      `https://api.github.com/repos/${OWNER}/${REPOSITORY}/contents/` +
+      `?ref=${BRANCH}`;
+
+    const pagesBaseUrl =
+      `https://${OWNER}.github.io/${REPOSITORY}/`;
+
+    async function hasIndexHtml(directoryName) {
+      const url =
+        `https://api.github.com/repos/${OWNER}/${REPOSITORY}/contents/` +
+        `${encodeURIComponent(directoryName)}/index.html?ref=${BRANCH}`;
+
+      const response = await fetch(url);
+      return response.ok;
+    }
+
+    async function getPageTitle(directoryName) {
+      const pageUrl =
+        pagesBaseUrl +
+        encodeURIComponent(directoryName) +
+        "/";
+
+      try {
+        const response = await fetch(pageUrl);
+
+        if (!response.ok) {
+          return directoryName;
+        }
+
+        const html = await response.text();
+        const documentData =
+          new DOMParser().parseFromString(html, "text/html");
+
+        return documentData.title.trim() || directoryName;
+      } catch {
+        return directoryName;
+      }
+    }
+
+    async function loadCourses() {
+      const status = document.getElementById("status");
+      const courseList = document.getElementById("course-list");
+
+      try {
+        const response = await fetch(apiUrl);
+
+        if (!response.ok) {
+          throw new Error(
+            `GitHub API error: ${response.status}`
+          );
+        }
+
+        const repositoryItems = await response.json();
+
+        const directories = repositoryItems
+          .filter(item => item.type === "dir")
+          .filter(item =>
+            !EXCLUDED_DIRECTORIES.includes(item.name)
+          )
+          .sort((a, b) =>
+            a.name.localeCompare(b.name, "ja")
+          );
+
+        const courses = [];
+
+        for (const directory of directories) {
+          if (await hasIndexHtml(directory.name)) {
+            const title = await getPageTitle(directory.name);
+
+            courses.push({
+              name: directory.name,
+              title: title,
+              url:
+                pagesBaseUrl +
+                encodeURIComponent(directory.name) +
+                "/"
+            });
+          }
+        }
+
+        if (courses.length === 0) {
+          status.textContent =
+            "公開されている教材が見つかりませんでした。";
+          return;
+        }
+
+        status.remove();
+
+        for (const course of courses) {
+          const listItem = document.createElement("li");
+          listItem.className = "course";
+
+          const link = document.createElement("a");
+          link.href = course.url;
+
+          const title = document.createElement("span");
+          title.className = "course-title";
+          title.textContent = course.title;
+
+          const folderName = document.createElement("span");
+          folderName.className = "folder-name";
+          folderName.textContent = course.name;
+
+          link.appendChild(title);
+          link.appendChild(folderName);
+          listItem.appendChild(link);
+          courseList.appendChild(listItem);
+        }
+      } catch (error) {
+        status.className = "error";
+        status.textContent =
+          "教材一覧を取得できませんでした。";
+
+        console.error(error);
+      }
+    }
+
+    loadCourses();
+  </script>
+</body>
+</html>
