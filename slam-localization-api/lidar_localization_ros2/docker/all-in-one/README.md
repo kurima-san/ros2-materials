@@ -35,6 +35,11 @@ docker compose build --no-cache --progress=plain 2>&1 | tee build.log
 依存関係の導入と `colcon build` は別レイヤーになっているため、失敗したステップが
 `rosdep` とコンパイルのどちらかもログから判別できます。
 
+`ndt_omp_ros2` はHumbleのrosdep databaseに定義がないため、Localizationと同じworkspaceへ
+ソースをcloneしてbuildします。また、このイメージは `BUILD_TESTING=OFF` でbuildするので、
+Humbleで提供されないテスト専用rosdep keyの `ros_testing` だけを `rosdep install` の
+対象から除外します。`python3-pil` は除外せず、UbuntuのUniverse repositoryから導入します。
+
 既定ではMID-360、GLIM、Localizationをすべて起動します。GLIMで地図作成だけを行う場合はLocalizationを無効化します。
 
 ```bash
