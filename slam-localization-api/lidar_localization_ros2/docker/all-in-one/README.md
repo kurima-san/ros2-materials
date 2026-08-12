@@ -1,13 +1,20 @@
-# MID-360 + GLIM + lidar_localization_ros2 統合Docker
+# MID-360 + GLIM + lidar_localization_ros2 オールインワンイメージ
 
-センサードライバ、CUDA 12.6版GLIM、Localizationを1イメージ・1コンテナへ統合した構成です。個別更新や障害分離を優先する本番運用では各独立Dockerを、導入の簡単さを優先する評価環境では本構成を使います。
+1つのイメージにMID-360 driver、GLIM、Localizationの3機能を収録しています。ただし、実行単位は次のどちらかです。
 
-## 初回設定と起動
+- **Mapping:** MID-360（またはbag再生）+ GLIM
+- **Localization:** MID-360（またはbag再生）+ lidar_localization_ros2
+
+GLIMとLocalizationを同時には起動しません。Compose service名も用途を表す`mapping`と`localization`です。
+
+## Buildと初期設定
 
 ```bash
 cd slam-localization-api/lidar_localization_ros2/docker/all-in-one
 mkdir -p ~/mid360_stack/config ~/ros_bags ~/ros2_maps
 docker compose build
+
+# GPU不要の設定ファイル初期生成
 docker run --rm \
   -v "${HOME}/mid360_stack/config:/data/config:rw" \
   mid360-glim-localization:humble-cuda12.6 true
@@ -15,82 +22,87 @@ docker run --rm \
 $EDITOR ~/mid360_stack/config/MID360_config.json
 $EDITOR ~/mid360_stack/config/glim/config_ros.json
 $EDITOR ~/mid360_stack/config/localization.yaml
-
-# localization.yamlのmap_pathは /data/maps/実際の地図.pcd に変更する
-xhost +local:docker
-docker compose up stack
+# localization.yamlのmap_pathを /data/maps/地図名.pcd にする
 ```
 
-設定ファイルの初期生成にはGPUを使わないため、ここではComposeの`stack` serviceではなく、
-build済みimageを`docker run`で直接起動します。このコマンドは`--gpus`を指定しないため、
-CDIが未設定でも設定ファイルを生成できます。
-`docker compose run ... stack true`を使うと、`true`の実行前にDockerが`stack`のGPUを
-割り当てようとして、CDI未設定の環境では `failed to discover GPU vendor from CDI` で
-停止します。初期生成には必ず上記の`docker run`を使用してください。
+完全にbuildし直す場合:
 
-実際の`stack`起動にはNVIDIA GPUが必要です。次の確認が両方成功してから起動します。
+```bash
+docker compose down --remove-orphans
+docker compose build --no-cache --pull --progress=plain 2>&1 | tee build.log
+```
+
+## リアルタイム実行
+
+```bash
+xhost +local:docker
+
+# センサー + GLIM（地図作成）
+docker compose up mapping
+
+# または、センサー + Localization（既存地図で自己位置推定）
+docker compose up localization
+```
+
+同時には起動しません。停止は`Ctrl+C`です。地図や設定はそれぞれ`~/ros2_maps`、`~/mid360_stack/config`に残ります。
+
+### リアルタイム入力をbagにも保存する
+
+```bash
+# Mapping入力を記録しながら処理
+RECORD_BAG=true docker compose up mapping
+
+# またはLocalization入力を記録しながら処理
+RECORD_BAG=true docker compose up localization
+```
+
+bagはホストの`~/ros_bags`へ保存されます。記録対象は`/livox/lidar`、`/livox/imu`、`/tf`、`/tf_static`です。ホストに同じROS 2環境があればホスト側の`ros2 bag record`でも記録できますが、必須ではありません。
+
+## rosbagから再現する
+
+まずホストから見えるbag pathを確認します。
+
+```bash
+find ~/ros_bags -maxdepth 2 -name metadata.yaml -print
+```
+
+`BAG_PATH`はコンテナ内のpath（`/data/bags/...`）で指定します。
+
+```bash
+# bag + GLIM（Mapping再現）
+INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
+  docker compose up mapping
+
+# bag + Localization（Localization再現）
+INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
+  LOCALIZATION_RVIZ=true docker compose up localization
+```
+
+bag modeではMID-360 driverを起動せず、コンテナ内で`ros2 bag play --clock`を実行し、処理nodeへ`use_sim_time=true`を渡します。したがってホスト側で別途bagをplayする必要はありません。
+
+## GPU/CDI確認
 
 ```bash
 nvidia-smi
 docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
 ```
 
-2つ目だけ `failed to discover GPU vendor from CDI` で失敗する場合、GPU driverは動作して
-いますが、ホスト側のNVIDIA Container Toolkit/CDI設定が完了していません。次をホストで
-実行します（コンテナ内では実行しません）。
+2つ目だけ`failed to discover GPU vendor from CDI`になる場合:
 
 ```bash
-# コマンドがなければ、先にNVIDIA Container Toolkitをインストールする
 command -v nvidia-ctk
-
 sudo nvidia-ctk runtime configure --runtime=docker
 sudo mkdir -p /etc/cdi
 sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
 sudo systemctl restart docker
-
 nvidia-ctk cdi list
-docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
 ```
 
-最後のDockerコマンドが成功してから `docker compose up stack` を実行してください。
-Dockerを再起動すると既存コンテナへ影響するため、実行前に必要なコンテナを停止します。
+Docker再起動後、GPUテストを再実行してください。ホストにはNVIDIA DriverとNVIDIA Container Toolkitが必要です。このイメージはx86_64/CUDA 12.6向けです。
 
-`lidar_localization_ros2` は更新されるため、Dockerfileでは同梱の巨大な
-`CMakeLists.txt` を丸ごと上書きせず、必要な `ndt_omp` リンク修正だけを適用します。
-修正スクリプトは行番号や周辺行に依存せず、legacy変数がなければ変更せずに正常終了します。
-このため、上流でCMakeの行位置やソース、インストール対象が変更されても、cloneした
-リビジョンとの食い違いだけを理由にbuildが停止しません。
+## Build実装上の注意
 
-ビルドに失敗した場合は、末尾の `exit code: 1` だけでなく、その前にある最初のエラーを
-確認できるよう、キャッシュを無効化してプレーンログを保存してください。
-
-```bash
-docker compose build --no-cache --progress=plain 2>&1 | tee build.log
-```
-
-依存関係の導入と `colcon build` は別レイヤーになっているため、失敗したステップが
-`rosdep` とコンパイルのどちらかもログから判別できます。
-
-`ndt_omp_ros2` はHumbleのrosdep databaseに定義がないため、Localizationと同じworkspaceへ
-ソースをcloneしてbuildします。また、このイメージは `BUILD_TESTING=OFF` でbuildするので、
-Humbleで提供されないテスト専用rosdep keyの `ros_testing` は `rosdep install` の対象から
-除外します。環境によってAPT candidateが存在しない `python3-pil` もrosdepから除外し、
-同じPython moduleを提供する `Pillow` をpipで導入してimportまでbuild中に確認します。
-
-既定ではMID-360、GLIM、Localizationをすべて起動します。GLIMで地図作成だけを行う場合はLocalizationを無効化します。
-
-```bash
-ENABLE_LOCALIZATION=false docker compose up stack
-```
-
-既存地図によるLocalizationだけならGLIMを無効化します。
-
-```bash
-ENABLE_GLIM=false LOCALIZATION_RVIZ=true docker compose up stack
-```
-
-`run-all.sh`は子プロセスのいずれかが終了すると他も停止させるため、一部だけが残って正常に見える状態を避けます。ホストにはNVIDIA DriverとNVIDIA Container Toolkitが必要で、このCUDA repository構成はx86_64向けです。
-
+`ndt_omp_ros2`はHumbleのrosdep databaseに定義がないため同じworkspaceへcloneしてbuildします。上流`CMakeLists.txt`は丸ごと置換せず、対象targetのlegacy link変数だけを修正します。`BUILD_TESTING=OFF`のため`ros_testing`を、APT candidateが不安定な`python3-pil`をrosdepから除外し、Pillowをpipで導入してimport確認します。
 
 ## arm64ボード
 
