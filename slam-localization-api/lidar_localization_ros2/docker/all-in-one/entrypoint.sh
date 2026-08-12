@@ -6,6 +6,9 @@ source /opt/localization_ws/install/setup.bash
 if [[ ! -f /data/config/MID360_config.json && -w /data/config ]]; then
   cp /opt/stack_defaults/MID360_config.json /data/config/MID360_config.json
 fi
+if [[ ! -f /data/config/MID360s_config.json && -w /data/config ]]; then
+  cp /opt/stack_defaults/MID360s_config.json /data/config/MID360s_config.json
+fi
 if [[ ! -d /data/config/glim && -w /data/config ]]; then
   mkdir -p /data/config/glim
 fi

@@ -1,25 +1,41 @@
+x-runtime: &runtime
+  image: mid360-glim-localization:humble-cuda12.6
+  build:
+    context: ../..
+    dockerfile: docker/all-in-one/Dockerfile
+  network_mode: host
+  ipc: host
+  gpus: all
+  environment: &runtime-environment
+    DISPLAY: ${DISPLAY:-:0}
+    ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+    QT_X11_NO_MITSHM: "1"
+    NVIDIA_VISIBLE_DEVICES: all
+    NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
+    INPUT_MODE: ${INPUT_MODE:-realtime}
+    BAG_PATH: ${BAG_PATH:-}
+    RECORD_BAG: ${RECORD_BAG:-false}
+    RECORD_TOPICS: ${RECORD_TOPICS:-/livox/lidar,/livox/imu,/tf,/tf_static}
+    PLAY_TOPICS: ${PLAY_TOPICS:-}
+    SENSOR_MODEL: ${SENSOR_MODEL:-mid360s}
+  volumes:
+    - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    - ${HOME}/mid360_stack/config:/data/config:rw
+    - ${HOME}/ros_bags:/data/bags:rw
+    - ${HOME}/ros2_maps:/data/maps:rw
+  stdin_open: true
+  tty: true
+
 services:
-  stack:
-    image: mid360-glim-localization:humble-cuda12.6
-    build:
-      context: ../..
-      dockerfile: docker/all-in-one/Dockerfile
-    network_mode: host
-    ipc: host
-    gpus: all
+  mapping:
+    <<: *runtime
     environment:
-      DISPLAY: ${DISPLAY:-:0}
-      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
-      QT_X11_NO_MITSHM: "1"
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
-      ENABLE_GLIM: ${ENABLE_GLIM:-true}
-      ENABLE_LOCALIZATION: ${ENABLE_LOCALIZATION:-true}
-      LOCALIZATION_RVIZ: ${LOCALIZATION_RVIZ:-false}
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ${HOME}/mid360_stack/config:/data/config:rw
-      - ${HOME}/ros_bags:/data/bags:rw
-      - ${HOME}/ros2_maps:/data/maps:rw
-    stdin_open: true
-    tty: true
+      <<: *runtime-environment
+      PIPELINE: mapping
+
+  localization:
+    <<: *runtime
+    environment:
+      <<: *runtime-environment
+      PIPELINE: localization
+      LOCALIZATION_RVIZ: ${LOCALIZATION_RVIZ:-true}

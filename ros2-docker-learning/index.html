@@ -174,6 +174,41 @@ colcon build</code></pre></div>
 <p>必要なImageがPCにない場合は、Dockerが自動的に取得してからContainerを起動します。</p>
 <details><summary>単体コマンドをもう少し試す</summary><pre><code>docker pull ubuntu:24.04
 docker run --rm -it ubuntu:24.04 bash</code></pre><p><code>exit</code>で一時Containerを終了します。</p></details>
+
+<h3>Container・Imageを安全に削除して作り直す</h3>
+<p>「再インストール」は、まずContainerを停止・削除し、必要ならImageを削除してから、pullまたはbuildし直す順番で行います。Imageを削除しても、bind mountしたPC側のソースや設定は削除されません。</p>
+<table><thead><tr><th>目的</th><th>操作</th><th>残るもの</th></tr></thead><tbody>
+<tr><td>Containerだけ作り直す</td><td><code>docker rm</code>後に<code>docker run</code></td><td>Image</td></tr>
+<tr><td>公開Imageを入れ直す</td><td><code>docker image rm</code>後に<code>docker pull</code></td><td>PC側データ</td></tr>
+<tr><td>自作Imageを完全再build</td><td><code>docker image rm</code>後に<code>docker build --no-cache</code></td><td>Dockerfile・PC側データ</td></tr>
+</tbody></table>
+<div class="code-wrap"><div class="code-title">Docker単体：公開Imageを入れ直す</div><pre><code># 1. 対象Imageを使うContainerを確認
+docker ps -a --filter ancestor=ubuntu:24.04
+
+# 2. 表示されたContainerを停止・削除
+docker stop CONTAINER_ID
+docker rm CONTAINER_ID
+
+# 3. Imageを削除し、もう一度取得
+docker image rm ubuntu:24.04
+docker pull ubuntu:24.04
+
+# 4. 再起動して確認
+docker run --rm -it ubuntu:24.04 bash</code></pre></div>
+<div class="code-wrap"><div class="code-title">Compose：ContainerとImageを作り直す</div><pre><code># compose.yamlがあるディレクトリで実行
+docker compose down --remove-orphans
+docker compose images
+
+# Composeが参照するImageを削除する場合
+docker image rm IMAGE_NAME:TAG
+
+# キャッシュを使わず、base Imageも更新確認して再build
+docker compose build --no-cache --pull
+docker compose up -d
+docker compose ps</code></pre></div>
+<div class="callout warning"><strong>削除範囲を確認：</strong><code>docker compose down</code>は通常named volumeを残します。<code>down -v</code>はnamed volumeも削除するため、DBやbagなど必要なデータがないことを確認してから使います。<code>docker system prune -a</code>は他プロジェクトの未使用Imageも対象になるため、最初の対処には使いません。</div>
+<details><summary>Imageを削除できない時の確認順</summary><ol><li><code>docker ps -a --filter ancestor=IMAGE_NAME:TAG</code>で参照中のContainerを探す。</li><li><code>docker stop</code>と<code>docker rm</code>でそのContainerだけを削除する。</li><li><code>docker image rm IMAGE_NAME:TAG</code>を再実行する。</li><li><code>docker image ls</code>と<code>docker image inspect IMAGE_NAME:TAG</code>で状態を確認する。</li></ol><p><code>docker image rm -f</code>は参照関係を理解した場合だけ使用します。</p></details>
+<div class="quiz" data-answer="b" data-explanation="Imageを参照するContainerを先に停止・削除し、その後Imageを削除します。"><h3>確認問題</h3><p>Imageが「Containerから使用中」で削除できない時、最初に行うことは？</p><label><input name="q-cleanup" type="radio" value="a"/> system prune -aを実行する</label><label><input name="q-cleanup" type="radio" value="b"/> 参照中Containerを確認して停止・削除する</label><label><input name="q-cleanup" type="radio" value="c"/> PC側のプロジェクトを削除する</label><button class="quiz-check" type="button">答えを確認</button><p class="quiz-result"></p></div>
 </section>
 
 <section class="module" id="step-5">
