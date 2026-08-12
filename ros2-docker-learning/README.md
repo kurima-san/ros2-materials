@@ -25,15 +25,16 @@ chmod +x serve.sh
 2. Dockerfile、Image、Container、Composeの関係
 3. Dockerを操作する場所
 4. `pull`、`build`、`run`による基本操作
-5. Dockerfileによる環境作成
-6. Composeによる開発環境の構成
-7. Composeの起動・確認・内部操作・終了
-8. 開発用と完成版の分離
-9. GUI付きROS 2サンプル
-10. Container内でのROS 2開発
-11. 完成版Imageと自動起動
-12. Docker通信とROS 2通信
-13. WSL、Ubuntu、Jetsonへの展開
+5. Container・Imageの削除、再取得、キャッシュなし再build
+6. Dockerfileによる環境作成
+7. Composeによる開発環境の構成
+8. Composeの起動・確認・内部操作・終了
+9. 開発用と完成版の分離
+10. GUI付きROS 2サンプル
+11. Container内でのROS 2開発
+12. 完成版Imageと自動起動
+13. Docker通信とROS 2通信
+14. WSL、Ubuntu、Jetsonへの展開
 
 ## 標準サンプル
 

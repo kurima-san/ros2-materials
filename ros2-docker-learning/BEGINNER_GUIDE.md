@@ -31,6 +31,9 @@ Ubuntu・Jetson実機へ展開する
 - 公開Imageを取得する
 - DockerfileからImageを作る
 - ImageからContainerを起動する
+- Containerを先に削除してからImageを安全に削除する
+- 公開Imageをpullし直し、自作Imageをキャッシュなしで再buildする
+- bind mountとnamed volumeを削除対象から区別する
 - Composeで複数のContainerと設定をまとめる
 
 ### フェーズ3：ROS 2開発
