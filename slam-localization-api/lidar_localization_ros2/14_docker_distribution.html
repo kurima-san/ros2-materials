@@ -7,43 +7,110 @@
 <div class="layout"><nav class="sidebar"><strong>章メニュー</strong><a href="index.html">トップ / 全体メニュー</a><a href="01_architecture.html">1. 全体構成</a><a href="02_livox_setup.html">2. Livox MID-360 セットアップ</a><a href="03_glim_setup.html">3. GLIM セットアップ・マップ作成</a><a href="04_lidar_localization_setup.html">4. lidar_localization_ros2 セットアップ</a><a href="05_map_generation.html">5. 2Dマップ生成・修正</a><a href="06_rviz_files.html">6. 専用Launch・RViz</a><a href="07_realtime.html">7. リアルタイム運用</a><a href="08_rosbag.html">8. rosbag運用</a><a href="09_recovery.html">9. 途中失敗時の復旧</a><a href="10_diagnostics.html">10. 診断・トラブル対処</a><a href="11_navigation.html">11. Nav2ナビゲーション</a><a href="12_auto_relocalization.html">12. 自動再ローカリゼーション</a><a href="13_reference.html">13. 参考情報</a><a href="14_docker_distribution.html" class="active">14. Docker環境の作成・配布</a></nav>
 <main class="main"><div class="breadcrumb"><a href="index.html">トップ</a> / 14. Docker環境の作成・配布</div><section class="page">
 <h2>14. Docker環境の作成・配布</h2>
-<div class="ok"><strong>同梱ファイル:</strong> <a href="docker/Dockerfile">Dockerfile</a>、<a href="docker/compose.yaml">compose.yaml</a>、<a href="docker/README.md">短縮手順</a>。4章と同じ修正版CMakeをイメージのbuild中に適用する。</div>
-<h3>14.1 前提と設計</h3><ul><li>ホストへDocker EngineとCompose pluginを導入済みにする。</li><li>MID-360のUDPと他のROS 2ノードを見つけやすくするためLinuxのhost networkを使用する。</li><li>地図とrosbagはイメージへ焼き込まずvolumeで永続化する。</li><li>GUIはX11を共有する。Wayland専用環境やmacOS/Windowsでは別途X serverが必要。</li></ul>
-<div class="warn"><strong>対応CPUを確認:</strong> 通常のbuildで作るイメージはbuildしたCPU向け。Jetson（arm64）へ持ち込むならJetson/arm64環境でbuildするか、buildxでarm64を指定して実機検証する。amd64イメージをそのままJetsonでは実行できない。</div>
-<h3>14.2 イメージを作る</h3><pre><code>cd /path/to/ros2-materials/slam-localization-api/lidar_localization_ros2/docker
-docker compose build
-docker image inspect lidar-localization-mid360:humble
+<div class="ok"><strong>4構成を同梱:</strong> MID-360、GLIM、lidar_localization_ros2をそれぞれ独立してbuildできる構成と、3機能を1コンテナで動かすオールインワン構成を用意した。</div>
+<h3>14.1 構成を選ぶ</h3>
+<table><tr><th>用途</th><th>場所</th><th>イメージ</th></tr>
+<tr><td>MID-360センサー単体</td><td><a href="docker/mid360/README.md"><code>docker/mid360/</code></a></td><td><code>livox-mid360:humble</code></td></tr>
+<tr><td>GLIM単体</td><td><a href="docker/glim/README.md"><code>docker/glim/</code></a></td><td><code>glim-mapping:humble-cuda12.6</code></td></tr>
+<tr><td>Localization単体</td><td><a href="docker/README.md"><code>docker/</code></a></td><td><code>lidar-localization-mid360:humble</code></td></tr>
+<tr><td>3機能オールインワン</td><td><a href="docker/all-in-one/README.md"><code>docker/all-in-one/</code></a></td><td><code>mid360-glim-localization:humble-cuda12.6</code></td></tr></table>
+<p>個別更新、障害分離、複数PCへの配置を重視する場合は独立構成を使う。初期評価や1台のGPU PCへの一括導入を重視する場合はオールインワンを使う。</p>
+<h3>14.2 共通前提</h3><ul><li>Docker EngineとCompose pluginを導入する。</li><li>GLIMを含む構成にはNVIDIA DriverとNVIDIA Container Toolkitが必要。</li><li>MID-360 UDPとROS 2 DDSのためLinux host networkを使用する。</li><li>設定、地図、bagはイメージへ焼き込まずvolumeに保存する。</li></ul>
+<pre><code>nvidia-smi
+docker run --rm --gpus all ubuntu:22.04 nvidia-smi
 </code></pre>
-<h3>14.3 起動と確認</h3><pre><code>mkdir -p ~/ros2_maps ~/ros_bags
-xhost +local:docker  # RVizを使うLinuxホストだけ
+<div class="warn"><strong>アーキテクチャ:</strong> CUDA 12.6版GLIMの同梱DockerfileはUbuntu 22.04/x86_64向け。Jetson/arm64ではJetPack/L4Tに合うベースイメージとGLIM buildを別途用意する。</div>
+<h3>14.3 独立Dockerをbuildする</h3>
+<pre><code>cd /path/to/ros2-materials/slam-localization-api/lidar_localization_ros2
+
+# センサー
+cd docker/mid360 &amp;&amp; docker compose build
+
+# GLIM
+cd ../glim &amp;&amp; docker compose build
+
+# Localization
+cd .. &amp;&amp; docker compose build
+</code></pre>
+<p>各Composeはhost networkを使う。同一PCでは同じ<code>ROS_DOMAIN_ID</code>を設定することで、センサーの<code>/livox/lidar</code>と<code>/livox/imu</code>をGLIMまたはLocalizationから購読できる。</p>
+<h3>14.4 独立Dockerを起動する</h3>
+<pre><code># 端末1: MID-360
+cd docker/mid360
+docker compose run --rm --no-deps mid360 true
+$EDITOR ~/mid360/config/MID360_config.json
+docker compose up mid360
+
+# 端末2: GLIM Mapping
+cd docker/glim
+docker compose run --rm --no-deps glim true
+$EDITOR ~/glim/config/glim/config_ros.json
+docker compose up glim
+
+# または端末2でLocalization
+cd docker
 docker compose run --rm localization
-
-# コンテナ内
-ros2 pkg prefix lidar_localization_ros2
-ros2 pkg executables lidar_localization_ros2
-</code></pre><p>地図は<code>/data/maps</code>、bagは<code>/data/bags</code>を参照する。終了後、必要ならホストで<code>xhost -local:docker</code>として許可を戻す。</p>
-<h3>14.4 USB等で別PCへオフライン導入</h3><pre><code># 作成PC
-docker save lidar-localization-mid360:humble | gzip &gt; lidar-localization-mid360_humble.tar.gz
-sha256sum lidar-localization-mid360_humble.tar.gz &gt; lidar-localization-mid360_humble.tar.gz.sha256
-
-# 上の2ファイルと docker/compose.yaml を対象PCへコピー後
-sha256sum -c lidar-localization-mid360_humble.tar.gz.sha256
-gunzip -c lidar-localization-mid360_humble.tar.gz | docker load
-docker compose -f compose.yaml run --rm localization
 </code></pre>
-<h3>14.5 Registry経由で導入</h3><pre><code># 作成PC（例。実際のregistry名へ置換）
-docker tag lidar-localization-mid360:humble registry.example.com/robot/lidar-localization:humble
-docker push registry.example.com/robot/lidar-localization:humble
+<div class="note">GLIMとLocalizationを常に同時実行する必要はない。地図作成時はGLIM、作成済みPCDで自己位置推定するときはLocalizationを選ぶ。複数MID-360の点群を単純に同じtopicへ混ぜず、時刻同期・外部標定後の統合topicを使用する。</div>
+<h3>14.5 オールインワンをbuild・起動する</h3>
+<pre><code>cd docker/all-in-one
+mkdir -p ~/mid360_stack/config ~/ros_bags ~/ros2_maps
+docker compose build
+docker compose run --rm --no-deps stack true
 
-# 対象PC
-docker pull registry.example.com/robot/lidar-localization:humble
-docker tag registry.example.com/robot/lidar-localization:humble lidar-localization-mid360:humble
-docker compose -f compose.yaml run --rm localization
+$EDITOR ~/mid360_stack/config/MID360_config.json
+$EDITOR ~/mid360_stack/config/glim/config_ros.json
+$EDITOR ~/mid360_stack/config/localization.yaml
+# localization.yamlのmap_pathを /data/maps/地図名.pcd に変更
+
+docker compose up stack
 </code></pre>
-<div class="note"><strong>再現性:</strong> build日、Git commit、CPUアーキテクチャ、<code>docker image inspect</code>のimage ID／RepoDigest、配布ファイルのSHA-256を記録する。公開済みイメージを使う場合も、提供元、対応ROS distroとCPU、更新日を確認しdigestで固定してから実データで検証する。</div>
-<h3>14.6 実機投入前チェック</h3><pre><code>docker run --rm lidar-localization-mid360:humble \
-  bash -lc 'ros2 pkg prefix lidar_localization_ros2'
-docker compose config
-</code></pre><p>その後、7章または8章の手順でtopic、TF、時刻、地図pathを確認する。コンテナ化はセンサー校正、TF、ROS_DOMAIN_IDの不一致を自動的には解決しない。</p>
+<p>既定では3機能を起動する。用途に応じて一部を止められる。</p>
+<pre><code># GLIM Mappingのみ（センサーは常時起動）
+ENABLE_LOCALIZATION=false docker compose up stack
+
+# 作成済み地図によるLocalizationのみ（センサーは常時起動）
+ENABLE_GLIM=false LOCALIZATION_RVIZ=true docker compose up stack
+</code></pre>
+<p>統合コンテナでは、いずれかの子プロセスが終了すると残りも停止する。部分的に停止した状態を正常稼働と誤認しないための動作である。</p>
+<h3>14.6 オフライン配布</h3>
+<pre><code># 例: 4イメージを保存
+for image in \
+  livox-mid360:humble \
+  glim-mapping:humble-cuda12.6 \
+  lidar-localization-mid360:humble \
+  mid360-glim-localization:humble-cuda12.6
+do
+  file=$(echo "$image" | tr '/:' '__').tar.gz
+  docker save "$image" | gzip &gt; "$file"
+  sha256sum "$file" &gt; "$file.sha256"
+done
+
+# 配布先では各ファイルを検証してload
+sha256sum -c IMAGE_FILE.tar.gz.sha256
+gunzip -c IMAGE_FILE.tar.gz | docker load
+</code></pre>
+<p>使用する構成の<code>compose.yaml</code>、イメージtar.gz、SHA-256ファイルを一緒に配布する。作成側と配布先のCPUアーキテクチャを合わせ、GLIM構成の配布先ではNVIDIA DriverとContainer Toolkitを別途準備する。</p>
+<h3>14.7 Jetson・Qualcomm系arm64ボード</h3>
+<p>arm64では構成ごとの対応範囲が異なる。MID-360センサー単体とLocalization単体は、Ubuntu 22.04を実行するボード上でnative buildする。使用イメージが<code>arm64/linux</code>になったことを<code>docker image inspect</code>で確認する。</p>
+<pre><code># Jetson / Qualcomm共通: センサー
+cd docker/mid360
+docker compose build --pull
+docker image inspect livox-mid360:humble \
+  --format '{{.Architecture}}/{{.Os}}'
+
+# Localization
+cd ..
+docker compose build --pull localization
+docker image inspect lidar-localization-mid360:humble \
+  --format '{{.Architecture}}/{{.Os}}'
+</code></pre>
+<div class="warn"><strong>GLIMの扱い:</strong> 同梱GLIMおよびオールインワンDockerfileはx86_64用CUDA repositoryを使うためarm64では停止する。Jetson版はJetPack/L4Tと一致するbase image上で依存ライブラリとGLIMをsource buildして実機検証する必要がある。QualcommのAdreno/HexagonはCUDA互換ではないため、Mappingをx86_64 CUDA PCへ分離し、Qualcomm側はセンサー受信・bag収録・Localizationを担当させる。</div>
+<p>JetPack/Container Runtimeの確認、Qualcomm BSPの前提、headless運用、分散Mapping、arm64イメージ配布の詳細は<a href="docker/ARM64_PLATFORMS.md">Jetson・Qualcomm系arm64手順</a>を参照する。</p>
+<h3>14.8 実機投入前チェック</h3>
+<pre><code>docker compose config
+ros2 topic type /livox/lidar  # sensor_msgs/msg/PointCloud2
+ros2 topic type /livox/imu
+</code></pre>
+<p>コンテナ化はセンサーIP、TF、時刻同期、外部標定、<code>ROS_DOMAIN_ID</code>、地図pathの不一致を自動解決しない。実機またはbagで構成ごとに確認する。</p>
 </section><div class="pager"><a href="13_reference.html">← 13. 参考情報</a><span></span></div></main></div>
 <footer>Livox MID-360 + GLIM + lidar_localization_ros2 Guide</footer><script src="assets/site.js"></script></body></html>
