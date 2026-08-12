@@ -26,12 +26,41 @@ $EDITOR ~/mid360_stack/config/localization.yaml
 # localization.yamlのmap_pathを /data/maps/地図名.pcd にする
 ```
 
-完全にbuildし直す場合:
+## 停止・Image削除・再build
+
+通常のDockerfile変更後は、既存Containerを削除してキャッシュなしで再buildします。
 
 ```bash
 docker compose down --remove-orphans
 docker compose build --no-cache --pull --progress=plain 2>&1 | tee build.log
 ```
+
+既存Imageも削除して完全に作り直す場合:
+
+```bash
+# このComposeが作成したContainerを停止・削除
+docker compose down --remove-orphans
+
+# Imageを使用中のContainerが残っていないことを確認
+docker ps -a --filter ancestor=mid360-glim-localization:humble-cuda12.6
+
+# all-in-one Imageだけを削除
+docker image rm mid360-glim-localization:humble-cuda12.6
+
+# Imageがなくなったことを確認して再build
+docker image inspect mid360-glim-localization:humble-cuda12.6 2>/dev/null \
+  || echo "all-in-one image removed"
+docker compose build --no-cache --pull --progress=plain 2>&1 | tee build.log
+```
+
+`image is being used by stopped container`と表示された場合は、上の`docker ps -a`で表示された
+Containerを`docker rm CONTAINER_ID`で削除してから、`docker image rm`を再実行します。
+強制削除の`docker image rm -f`や、他プロジェクトの未使用データまで消す
+`docker system prune -a`は通常使用しません。
+
+`~/mid360_stack/config`、`~/ros_bags`、`~/ros2_maps`はホスト側のディレクトリなので、
+ContainerやImageを削除しても残ります。設定・bag・地図も初期化したい場合だけ、内容を
+バックアップしたうえで該当ディレクトリを手動削除してください。
 
 ## センサーモデルを選ぶ
 

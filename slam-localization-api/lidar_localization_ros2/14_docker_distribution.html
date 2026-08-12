@@ -68,6 +68,20 @@ $EDITOR ~/mid360_stack/config/glim/config_ros.json
 $EDITOR ~/mid360_stack/config/localization.yaml
 # localization.yamlのmap_pathを /data/maps/地図名.pcd に変更
 </code></pre>
+<h4>Imageを削除してbuildし直す</h4>
+<p>Dockerfile変更後は、まず既存Containerを削除し、キャッシュなしでbuildする。</p>
+<pre><code>docker compose down --remove-orphans
+docker compose build --no-cache --pull --progress=plain 2&gt;&amp;1 | tee build.log
+</code></pre>
+<p>既存Image自体も削除して完全に作り直す場合:</p>
+<pre><code>docker compose down --remove-orphans
+docker ps -a --filter ancestor=mid360-glim-localization:humble-cuda12.6
+docker image rm mid360-glim-localization:humble-cuda12.6
+docker image inspect mid360-glim-localization:humble-cuda12.6 2&gt;/dev/null \
+  || echo "all-in-one image removed"
+docker compose build --no-cache --pull --progress=plain 2&gt;&amp;1 | tee build.log
+</code></pre>
+<div class="note"><strong>ホストデータは残る:</strong> ImageやContainerを削除しても、bind mount先の<code>~/mid360_stack/config</code>、<code>~/ros_bags</code>、<code>~/ros2_maps</code>は削除されない。<code>docker system prune -a</code>は他プロジェクトの未使用Imageなども対象になるため、この手順では使用しない。</div>
 <h3>14.6 センサーモデルを選んでリアルタイム処理する</h3>
 <p>既定は実機に合わせて<code>SENSOR_MODEL=mid360s</code>。両機種のJSONを生成し、MID-360を使う場合だけ<code>SENSOR_MODEL=mid360</code>を指定する。bag modeではdriverを起動しないため指定不要。</p>
 <pre><code>xhost +local:docker
