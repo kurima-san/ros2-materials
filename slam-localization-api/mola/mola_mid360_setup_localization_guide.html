@@ -45,11 +45,11 @@ table{width:100%;border-collapse:collapse;margin:10px 0 18px;font-size:14px}th,t
 <header><div class="wrap">
 <h1>MOLA + Livox Mid-360<br/>Mapping / Localization 実践ガイド</h1>
 <p>Ubuntu 22.04 / ROS 2 Humble / Livox Mid-360 を対象に、source build、MAP作成、loop closure、metric map化、Realtime / rosbag Localization、途中で位置推定を失ったときの手動復旧までを章ごとに参照できる運用資料。左メニューから必要な章だけを表示できます。</p>
-<div class="badges"><span class="badge">ROS 2 Humble</span><span class="badge">Ubuntu 22.04</span><span class="badge">Livox Mid-360</span><span class="badge">MOLA-LO / LIO</span><span class="badge">Realtime + rosbag2</span><span class="badge">更新: 2026-08-11</span></div>
+<div class="badges"><span class="badge">ROS 2 Humble</span><span class="badge">Ubuntu 22.04</span><span class="badge">Livox Mid-360</span><span class="badge">MOLA-LO / LIO</span><span class="badge">Realtime + rosbag2</span><span class="badge">更新: 2026-08-12</span></div>
 </div></header>
 <div class="layout">
-<aside class="side"><div class="side-head"><strong>章メニュー</strong><button class="mobile-menu-toggle" type="button">メニュー</button><div class="small">選択した章だけを本文に表示します。</div><input aria-label="章を検索" class="chapter-search" placeholder="章を検索…" type="search"/></div><nav aria-label="章メニュー"><div class="menu-group"><div class="menu-group-title">導入・環境</div><a data-chapter="overview" href="#overview">1. 全体像</a><a data-chapter="setup" href="#setup">2. Source build セットアップ</a><a data-chapter="files" href="#files">追加ファイル一式</a><a data-chapter="shell" href="#shell">3. MOLA専用shell</a><a data-chapter="sensor" href="#sensor">4. Mid-360の前提</a></div><div class="menu-group"><div class="menu-group-title">MAP作成</div><a data-chapter="mapping" href="#mapping">5. MAP作成</a><a data-chapter="post" href="#post">6. Loop closure と metric map化</a><a data-chapter="dynamic" href="#dynamic">7. 人などの動体除去</a><a data-chapter="checkmap" href="#checkmap">8. MAP確認</a></div><div class="menu-group"><div class="menu-group-title">Localization</div><a data-chapter="localization" href="#localization">9. Localization共通原則</a><a data-chapter="realtime" href="#realtime">10. Realtime Localization</a><a data-chapter="rosbag" href="#rosbag">11. rosbag Localization</a><a data-chapter="recover" href="#recover">12. Localizationが途中で失敗したときの手動復旧</a></div><div class="menu-group"><div class="menu-group-title">ロボット統合</div><a data-chapter="tf" href="#tf">13. TF設計</a><a data-chapter="go2" href="#go2">14. Go2 / Nav2へ持っていくとき</a></div><div class="menu-group"><div class="menu-group-title">運用・保守</div><a data-chapter="trouble" href="#trouble">15. Troubleshooting</a><a data-chapter="ops" href="#ops">16. 運用チェックリスト</a><a data-chapter="sources" href="#sources">17. 公式参考資料</a></div><div class="no-menu-result">該当する章がありません。</div></nav></aside>
-<main><div aria-label="章ナビゲーション" class="chapter-toolbar"><div class="chapter-now"><div class="eyebrow">CURRENT CHAPTER</div><div class="chapter-name" id="currentChapterName">1. 全体像</div></div><select aria-label="章を選択" class="chapter-jump"><option value="overview">1. 全体像</option><option value="setup">2. Source build セットアップ</option><option value="files">追加ファイル一式</option><option value="shell">3. MOLA専用shell</option><option value="sensor">4. Mid-360の前提</option><option value="mapping">5. MAP作成</option><option value="post">6. Loop closure と metric map化</option><option value="dynamic">7. 人などの動体除去</option><option value="checkmap">8. MAP確認</option><option value="localization">9. Localization共通原則</option><option value="realtime">10. Realtime Localization</option><option value="rosbag">11. rosbag Localization</option><option value="recover">12. Localizationが途中で失敗したときの手動復旧</option><option value="tf">13. TF設計</option><option value="go2">14. Go2 / Nav2へ持っていくとき</option><option value="trouble">15. Troubleshooting</option><option value="ops">16. 運用チェックリスト</option><option value="sources">17. 公式参考資料</option></select><div class="chapter-actions"><button class="navbtn" id="prevChapter" type="button">← 前の章</button><button class="navbtn" id="nextChapter" type="button">次の章 →</button></div></div>
+<aside class="side"><div class="side-head"><strong>章メニュー</strong><button class="mobile-menu-toggle" type="button">メニュー</button><div class="small">選択した章だけを本文に表示します。</div><input aria-label="章を検索" class="chapter-search" placeholder="章を検索…" type="search"/></div><nav aria-label="章メニュー"><div class="menu-group"><div class="menu-group-title">導入・環境</div><a data-chapter="overview" href="#overview">1. 全体像</a><a data-chapter="setup" href="#setup">2. Source build セットアップ</a><a data-chapter="files" href="#files">追加ファイル一式</a><a data-chapter="shell" href="#shell">3. MOLA専用shell</a><a data-chapter="sensor" href="#sensor">4. Mid-360の前提</a></div><div class="menu-group"><div class="menu-group-title">MAP作成</div><a data-chapter="mapping" href="#mapping">5. MAP作成</a><a data-chapter="post" href="#post">6. Loop closure と metric map化</a><a data-chapter="dynamic" href="#dynamic">7. 人などの動体除去</a><a data-chapter="checkmap" href="#checkmap">8. MAP確認</a></div><div class="menu-group"><div class="menu-group-title">Localization</div><a data-chapter="localization" href="#localization">9. Localization共通原則</a><a data-chapter="realtime" href="#realtime">10. Realtime Localization</a><a data-chapter="rosbag" href="#rosbag">11. rosbag Localization</a><a data-chapter="recover" href="#recover">12. Localizationが途中で失敗したときの手動復旧</a></div><div class="menu-group"><div class="menu-group-title">ロボット統合</div><a data-chapter="tf" href="#tf">13. TF設計</a><a data-chapter="go2" href="#go2">14. Go2 / Nav2へ持っていくとき</a></div><div class="menu-group"><div class="menu-group-title">運用・保守</div><a data-chapter="trouble" href="#trouble">15. Troubleshooting</a><a data-chapter="ops" href="#ops">16. 運用チェックリスト</a><a data-chapter="docker" href="#docker">17. Docker環境の作成・配布</a><a data-chapter="sources" href="#sources">18. 公式参考資料</a></div><div class="no-menu-result">該当する章がありません。</div></nav></aside>
+<main><div aria-label="章ナビゲーション" class="chapter-toolbar"><div class="chapter-now"><div class="eyebrow">CURRENT CHAPTER</div><div class="chapter-name" id="currentChapterName">1. 全体像</div></div><select aria-label="章を選択" class="chapter-jump"><option value="overview">1. 全体像</option><option value="setup">2. Source build セットアップ</option><option value="files">追加ファイル一式</option><option value="shell">3. MOLA専用shell</option><option value="sensor">4. Mid-360の前提</option><option value="mapping">5. MAP作成</option><option value="post">6. Loop closure と metric map化</option><option value="dynamic">7. 人などの動体除去</option><option value="checkmap">8. MAP確認</option><option value="localization">9. Localization共通原則</option><option value="realtime">10. Realtime Localization</option><option value="rosbag">11. rosbag Localization</option><option value="recover">12. Localizationが途中で失敗したときの手動復旧</option><option value="tf">13. TF設計</option><option value="go2">14. Go2 / Nav2へ持っていくとき</option><option value="trouble">15. Troubleshooting</option><option value="ops">16. 運用チェックリスト</option><option value="docker">17. Docker環境の作成・配布</option><option value="sources">18. 公式参考資料</option></select><div class="chapter-actions"><button class="navbtn" id="prevChapter" type="button">← 前の章</button><button class="navbtn" id="nextChapter" type="button">次の章 →</button></div></div>
 <section class="card chapter-card active-chapter" id="overview"><h2>1. 全体像</h2><div class="ok"><b>この版では、追加設定はすべてファイルとして同梱。</b> MOLA本体のYAML/launch/sourceを手で部分編集せず、<code>mola_mid360_tools</code>を追加して実行する。</div>
 <p class="lead"><b>推奨フロー:</b> Mid-360を人が持って高品質MAPを作成し、loop closureと後処理を済ませた固定MAPを、RealtimeまたはrosbagのLocalization専用モードで使用する。</p>
 <div class="flow"><span>Mid-360収録</span><i>→</i><span>LIO Mapping</span><i>→</i><span>.simplemap</span><i>→</i><span>Loop Closure</span><i>→</i><span>sm2mm</span><i>→</i><span>.mm</span><i>→</i><span>Localization only</span></div>
@@ -442,7 +442,45 @@ thread apply all bt</pre>
 <section class="card chapter-card" id="ops"><h2>16. 運用チェックリスト</h2>
 <div class="grid"><div class="mini"><b>MAP作成前</b>LiDAR/IMU hz確認<br/>センサーを床が見える姿勢に<br/>近距離filter=0.1</div><div class="mini"><b>後処理</b>simplemap+Images保管<br/>Loop closure<br/>sm2mm range=0.1<br/>mm-viewer確認</div><div class="mini"><b>Realtime開始</b>MAP load<br/>inactive起動<br/>初期pose<br/>active ON<br/>TF確認</div><div class="mini"><b>rosbag開始</b>sim_time=True<br/>--clock --pause<br/>初期pose<br/>active ON<br/>resume</div><div class="mini"><b>位置ずれ時</b>停止<br/>active OFF<br/>再pose指定<br/>active ON<br/>TF確認して再開</div></div>
 </section>
-<section class="card chapter-card" id="sources"><h2>17. 公式参考資料</h2><ul class="src">
+<section class="card chapter-card" id="docker"><h2>17. Docker環境の作成・別PCへの配布</h2>
+<div class="ok"><b>同梱済み:</b> <a href="docker/Dockerfile"><code>docker/Dockerfile</code></a>、<a href="docker/compose.yaml"><code>compose.yaml</code></a>、<a href="docker/README.md">短縮手順</a>。2章のsource buildと本bundleの<code>mola_mid360_tools</code>をイメージ内で構築する。</div>
+<h3>17.1 方針と前提</h3><ul><li>ホストにはDocker EngineとCompose pluginを導入しておく。</li><li>Livox UDPとROS 2 DDSのためLinux host networkを使用する。</li><li>MAPとrosbagはimageへ含めず、ホストの<code>~/mola_maps</code>／<code>~/ros_bags</code>をvolume mountする。</li><li>GUIはX11 socketを共有する。Wayland専用環境やmacOS/Windowsでは別途X serverが必要。</li></ul>
+<div class="warn"><b>CPUアーキテクチャ:</b> amd64で通常buildしたimageはJetson（arm64）では動かない。配布先と同じアーキテクチャでbuildするか、buildxで対象を指定し、必ず実機でMOLAとGUIを検証する。</div>
+<h3>17.2 build</h3><pre><button class="copy">copy</button>cd /path/to/ros2-materials/slam-localization-api/mola/docker
+docker compose build
+docker image inspect mola-mid360:humble</pre>
+<h3>17.3 起動・確認</h3><pre><button class="copy">copy</button>mkdir -p ~/mola_maps ~/ros_bags
+xhost +local:docker  # GUIを使うLinuxホストだけ
+docker compose run --rm mola
+
+# コンテナ内
+ros2 pkg prefix mola_lidar_odometry
+ros2 pkg prefix mola_mid360_tools
+ros2 run mola_mid360_tools check_mid360_topics</pre>
+<p>コンテナ内ではMAPを<code>/data/maps</code>、bagを<code>/data/bags</code>として指定する。終了後、必要ならホストで<code>xhost -local:docker</code>を実行する。</p>
+<h3>17.4 USB等でオフライン導入</h3><pre><button class="copy">copy</button># 作成PC
+docker save mola-mid360:humble | gzip &gt; mola-mid360_humble.tar.gz
+sha256sum mola-mid360_humble.tar.gz &gt; mola-mid360_humble.tar.gz.sha256
+
+# 2ファイルとdocker/compose.yamlを対象PCへコピー後
+sha256sum -c mola-mid360_humble.tar.gz.sha256
+gunzip -c mola-mid360_humble.tar.gz | docker load
+docker compose -f compose.yaml run --rm mola</pre>
+<h3>17.5 Registry経由で導入</h3><pre><button class="copy">copy</button># 作成PC（実際のregistry名へ置換）
+docker tag mola-mid360:humble registry.example.com/robot/mola-mid360:humble
+docker push registry.example.com/robot/mola-mid360:humble
+
+# 対象PC
+docker pull registry.example.com/robot/mola-mid360:humble
+docker tag registry.example.com/robot/mola-mid360:humble mola-mid360:humble
+docker compose -f compose.yaml run --rm mola</pre>
+<div class="note"><b>再現性と公開image:</b> build日、各Git commit、CPU、image ID／RepoDigest、配布tarのSHA-256を保存する。既存の公開imageを参考・利用する場合は、提供元、ROS distro、アーキテクチャ、更新日を確認し、可変tagではなくdigestで固定して、同じbagとMAPで受入試験する。</div>
+<h3>17.6 実機前チェック</h3><pre><button class="copy">copy</button>docker run --rm mola-mid360:humble \
+  bash -lc 'ros2 pkg prefix mola_lidar_odometry &amp;&amp; ros2 pkg prefix mola_mid360_tools'
+docker compose config</pre>
+<p>続けて4章のtopic、13章のTF、Realtimeではwall clock、rosbagでは<code>use_sim_time</code>と<code>--clock</code>を確認する。コンテナ化しても校正値やTF不整合は解消されない。</p>
+</section>
+<section class="card chapter-card" id="sources"><h2>18. 公式参考資料</h2><ul class="src">
 <li><a href="https://docs.mola-slam.org/latest/" target="_blank">MOLA documentation / source build</a></li>
 <li><a href="https://docs.mola-slam.org/latest/tutorial-mola-lo-map-and-localize.html" target="_blank">Build a map and then localize</a></li>
 <li><a href="https://docs.mola-slam.org/latest/tutorial-ouster-lio.html" target="_blank">Hand-held LIO mapping and localization</a></li>

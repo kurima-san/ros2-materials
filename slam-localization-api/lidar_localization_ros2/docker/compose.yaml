@@ -1,0 +1,18 @@
+services:
+  localization:
+    image: lidar-localization-mid360:humble
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    network_mode: host
+    ipc: host
+    environment:
+      DISPLAY: ${DISPLAY:-:0}
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      QT_X11_NO_MITSHM: "1"
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/ros2_maps:/data/maps:rw
+      - ${HOME}/ros_bags:/data/bags:rw
+    stdin_open: true
+    tty: true
