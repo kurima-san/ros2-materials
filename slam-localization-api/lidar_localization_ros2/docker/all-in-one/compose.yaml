@@ -1,11 +1,4 @@
 services:
-  # 設定ファイルの初期生成にはGPUを要求しない。stackを使うと、コマンドが
-  # `true`でもコンテナ作成時にGPU/CDIの検出が走るため、専用serviceに分ける。
-  init:
-    image: mid360-glim-localization:humble-cuda12.6
-    volumes:
-      - ${HOME}/mid360_stack/config:/data/config:rw
-
   stack:
     image: mid360-glim-localization:humble-cuda12.6
     build:

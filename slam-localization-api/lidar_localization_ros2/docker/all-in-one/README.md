@@ -8,7 +8,9 @@
 cd slam-localization-api/lidar_localization_ros2/docker/all-in-one
 mkdir -p ~/mid360_stack/config ~/ros_bags ~/ros2_maps
 docker compose build
-docker compose run --rm --no-deps init true
+docker run --rm \
+  -v "${HOME}/mid360_stack/config:/data/config:rw" \
+  mid360-glim-localization:humble-cuda12.6 true
 
 $EDITOR ~/mid360_stack/config/MID360_config.json
 $EDITOR ~/mid360_stack/config/glim/config_ros.json
@@ -19,11 +21,12 @@ xhost +local:docker
 docker compose up stack
 ```
 
-設定ファイルの初期生成にはGPUを使わないため、`init` serviceはGPU要求を持ちません。
-`init`はprofileで隠していないため、追加オプションなしで上記コマンドから参照できます。
+設定ファイルの初期生成にはGPUを使わないため、ここではComposeの`stack` serviceではなく、
+build済みimageを`docker run`で直接起動します。このコマンドは`--gpus`を指定しないため、
+CDIが未設定でも設定ファイルを生成できます。
 `docker compose run ... stack true`を使うと、`true`の実行前にDockerが`stack`のGPUを
 割り当てようとして、CDI未設定の環境では `failed to discover GPU vendor from CDI` で
-停止します。初期生成には必ず上記の`init` serviceを使用してください。
+停止します。初期生成には必ず上記の`docker run`を使用してください。
 
 実際の`stack`起動にはNVIDIA GPUが必要です。次の確認が両方成功してから起動します。
 
