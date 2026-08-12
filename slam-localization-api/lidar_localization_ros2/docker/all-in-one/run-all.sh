@@ -6,6 +6,19 @@ input_mode=${INPUT_MODE:-realtime}
 sensor_model=${SENSOR_MODEL:-mid360s}
 pids=()
 
+csv_to_array() {
+  local value=$1
+  local -n output=$2
+  local item
+  IFS=',' read -r -a output <<< "$value"
+  for item in "${output[@]}"; do
+    [[ -n "$item" && "$item" != *[[:space:]]* ]] || {
+      echo >&2 "Topic lists must be comma-separated, non-empty names without spaces"
+      exit 2
+    }
+  done
+}
+
 case "$pipeline" in
   mapping|localization) ;;
   *) echo >&2 "PIPELINE must be 'mapping' or 'localization'"; exit 2 ;;
@@ -36,7 +49,12 @@ else
     echo >&2 "For INPUT_MODE=bag, set BAG_PATH to a bag under /data/bags"
     exit 2
   fi
-  ros2 bag play "${BAG_PATH}" --clock &
+  play_args=("${BAG_PATH}" --clock)
+  if [[ -n "${PLAY_TOPICS:-}" ]]; then
+    csv_to_array "$PLAY_TOPICS" play_topics
+    play_args+=(--topics "${play_topics[@]}")
+  fi
+  ros2 bag play "${play_args[@]}" &
   pids+=("$!")
 fi
 
@@ -53,10 +71,11 @@ fi
 pids+=("$!")
 
 if [[ "${RECORD_BAG:-false}" == true ]]; then
+  csv_to_array "${RECORD_TOPICS:-/livox/lidar,/livox/imu,/tf,/tf_static}" record_topics
   output="/data/bags/${pipeline}_$(date -u +%Y%m%dT%H%M%SZ)"
-  ros2 bag record -o "$output" /livox/lidar /livox/imu /tf /tf_static &
+  ros2 bag record -o "$output" "${record_topics[@]}" &
   pids+=("$!")
-  echo "Recording input and TF topics to $output"
+  echo "Recording topics to $output: ${record_topics[*]}"
 fi
 
 # Any component ending ends the complete sensor/playback + processing pipeline.

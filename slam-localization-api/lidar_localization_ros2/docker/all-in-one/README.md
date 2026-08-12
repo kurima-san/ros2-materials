@@ -76,6 +76,14 @@ RECORD_BAG=true docker compose up localization
 
 bagはホストの`~/ros_bags`へ保存されます。記録対象は`/livox/lidar`、`/livox/imu`、`/tf`、`/tf_static`です。ホストに同じROS 2環境があればホスト側の`ros2 bag record`でも記録できますが、必須ではありません。
 
+記録topicを指定する場合は、空白を入れないカンマ区切りで`RECORD_TOPICS`を渡します。
+
+```bash
+RECORD_BAG=true \
+RECORD_TOPICS=/livox/lidar,/livox/imu,/tf,/tf_static,/diagnostics \
+  docker compose up localization
+```
+
 ## rosbagから再現する
 
 まずホストから見えるbag pathを確認します。
@@ -94,9 +102,14 @@ INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
 # bag + Localization（Localization再現）
 INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
   LOCALIZATION_RVIZ=true docker compose up localization
+
+# bag内の指定topicだけを再生（空白なしのカンマ区切り）
+INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
+PLAY_TOPICS=/livox/lidar,/livox/imu,/tf,/tf_static \
+  docker compose up localization
 ```
 
-bag modeではMID-360/MID-360S driverを起動せず、コンテナ内で`ros2 bag play --clock`を実行し、処理nodeへ`use_sim_time=true`を渡します。したがってホスト側で別途bagをplayする必要はありません。
+`PLAY_TOPICS`を省略するとbag内の全topicを再生します。bag modeではMID-360/MID-360S driverを起動せず、コンテナ内で`ros2 bag play --clock`を実行し、処理nodeへ`use_sim_time=true`を渡します。したがってホスト側で別途bagをplayする必要はありません。MappingまたはLocalizationに必要な`/livox/lidar`と`/livox/imu`を除外しないでください。TFも再現する場合は`/tf`と`/tf_static`を含めます。
 
 ## GPU/CDI確認
 

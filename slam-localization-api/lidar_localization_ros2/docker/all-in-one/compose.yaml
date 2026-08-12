@@ -15,6 +15,8 @@ x-runtime: &runtime
     INPUT_MODE: ${INPUT_MODE:-realtime}
     BAG_PATH: ${BAG_PATH:-}
     RECORD_BAG: ${RECORD_BAG:-false}
+    RECORD_TOPICS: ${RECORD_TOPICS:-/livox/lidar,/livox/imu,/tf,/tf_static}
+    PLAY_TOPICS: ${PLAY_TOPICS:-}
     SENSOR_MODEL: ${SENSOR_MODEL:-mid360s}
   volumes:
     - /tmp/.X11-unix:/tmp/.X11-unix:rw

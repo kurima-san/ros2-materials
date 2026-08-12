@@ -89,6 +89,11 @@ SENSOR_MODEL=mid360 docker compose up localization
 <pre><code>RECORD_BAG=true docker compose up mapping
 # または
 RECORD_BAG=true docker compose up localization
+
+# 記録topicを空白なしのカンマ区切りで指定
+RECORD_BAG=true \
+RECORD_TOPICS=/livox/lidar,/livox/imu,/tf,/tf_static,/diagnostics \
+  docker compose up localization
 </code></pre>
 <p>ホストにROS 2があればホスト側から同じtopicをrecordしてもよいが、上記ではコンテナ内の<code>ros2 bag record</code>を使うため、ホストへのROS 2導入は不要。</p>
 <h3>14.7 オールインワンでrosbagを再生する</h3>
@@ -102,8 +107,13 @@ INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
 # またはbag + Localization
 INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
   LOCALIZATION_RVIZ=true docker compose up localization
+
+# 指定topicだけを再生
+INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
+PLAY_TOPICS=/livox/lidar,/livox/imu,/tf,/tf_static \
+  docker compose up localization
 </code></pre>
-<p><code>BAG_PATH</code>はコンテナ内pathで指定する。bag modeではMID-360/MID-360S driverの代わりにコンテナ内で<code>ros2 bag play --clock</code>を起動し、GLIMまたはLocalizationへ<code>use_sim_time=true</code>を渡す。ホスト側で別途playする必要はない。</p>
+<p><code>BAG_PATH</code>はコンテナ内pathで指定する。<code>RECORD_TOPICS</code>と<code>PLAY_TOPICS</code>は空白なしのカンマ区切り。<code>PLAY_TOPICS</code>を省略すると全topicを再生する。bag modeではMID-360/MID-360S driverの代わりにコンテナ内で<code>ros2 bag play --clock</code>を起動し、GLIMまたはLocalizationへ<code>use_sim_time=true</code>を渡す。処理に必要な<code>/livox/lidar</code>と<code>/livox/imu</code>を再生対象から除外しない。</p>
 <h3>14.8 オフライン配布</h3>
 <pre><code># 例: 4イメージを保存
 for image in \
