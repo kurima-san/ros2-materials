@@ -1,0 +1,34 @@
+# MID-360 + GLIM + lidar_localization_ros2 統合Docker
+
+センサードライバ、CUDA 12.6版GLIM、Localizationを1イメージ・1コンテナへ統合した構成です。個別更新や障害分離を優先する本番運用では各独立Dockerを、導入の簡単さを優先する評価環境では本構成を使います。
+
+## 初回設定と起動
+
+```bash
+cd slam-localization-api/lidar_localization_ros2/docker/all-in-one
+mkdir -p ~/mid360_stack/config ~/ros_bags ~/ros2_maps
+docker compose build
+docker compose run --rm --no-deps stack true
+
+$EDITOR ~/mid360_stack/config/MID360_config.json
+$EDITOR ~/mid360_stack/config/glim/config_ros.json
+$EDITOR ~/mid360_stack/config/localization.yaml
+
+# localization.yamlのmap_pathは /data/maps/実際の地図.pcd に変更する
+xhost +local:docker
+docker compose up stack
+```
+
+既定ではMID-360、GLIM、Localizationをすべて起動します。GLIMで地図作成だけを行う場合はLocalizationを無効化します。
+
+```bash
+ENABLE_LOCALIZATION=false docker compose up stack
+```
+
+既存地図によるLocalizationだけならGLIMを無効化します。
+
+```bash
+ENABLE_GLIM=false LOCALIZATION_RVIZ=true docker compose up stack
+```
+
+`run-all.sh`は子プロセスのいずれかが終了すると他も停止させるため、一部だけが残って正常に見える状態を避けます。ホストにはNVIDIA DriverとNVIDIA Container Toolkitが必要で、このCUDA repository構成はx86_64向けです。

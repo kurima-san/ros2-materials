@@ -1,6 +1,18 @@
-# lidar_localization_ros2 Docker 環境
+# lidar_localization_ros2単体Docker環境
 
 Ubuntu 22.04 / ROS 2 Humble と、このガイドの修正版 `CMakeLists.txt` を再現可能なイメージにまとめます。
+このディレクトリ直下はLocalizationだけを含み、センサードライバとGLIMは含みません。
+
+## 構成の選択
+
+| 構成 | ディレクトリ | 内容 |
+|---|---|---|
+| センサー単体 | [`mid360/`](mid360/) | Livox-SDK2 + livox_ros_driver2 |
+| GLIM単体 | [`glim/`](glim/) | CUDA 12.6版GLIM |
+| Localization単体 | このディレクトリ | lidar_localization_ros2 |
+| オールインワン | [`all-in-one/`](all-in-one/) | 上記3機能を1イメージ・1コンテナへ統合 |
+
+独立構成同士はLinux host networkと同じ`ROS_DOMAIN_ID`で接続します。
 
 ```bash
 cd slam-localization-api/lidar_localization_ros2/docker
