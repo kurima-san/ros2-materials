@@ -1,9 +1,14 @@
 FROM ros:humble-ros-base-jammy
 
+ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH=/usr/local/cuda-12.6/bin:${PATH}
 ENV LD_LIBRARY_PATH=/usr/local/cuda-12.6/lib64:${LD_LIBRARY_PATH}
+
+# CUDA/GLIMのAPT repositoryはx86_64専用。arm64では別手順を使う。
+RUN test "${TARGETARCH}" = "amd64" || \
+    (echo >&2 "docker/glim is amd64-only; see docker/ARM64_PLATFORMS.md"; exit 1)
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl gpg software-properties-common ros-humble-rviz2 \

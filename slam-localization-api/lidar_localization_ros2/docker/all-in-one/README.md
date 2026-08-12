@@ -32,3 +32,8 @@ ENABLE_GLIM=false LOCALIZATION_RVIZ=true docker compose up stack
 ```
 
 `run-all.sh`は子プロセスのいずれかが終了すると他も停止させるため、一部だけが残って正常に見える状態を避けます。ホストにはNVIDIA DriverとNVIDIA Container Toolkitが必要で、このCUDA repository構成はx86_64向けです。
+
+
+## arm64ボード
+
+JetsonおよびQualcomm系ボードは[共通arm64手順](../ARM64_PLATFORMS.md)を確認してください。

@@ -13,3 +13,8 @@ docker compose up mid360
 ```
 
 `/livox/lidar`（PointCloud2）と`/livox/imu`をhost network上へPublishします。別コンテナは同じ`ROS_DOMAIN_ID`で購読してください。複数台の場合は`lidar_configs`へ登録し、IP・ポートを重複させないでください。
+
+
+## arm64ボード
+
+JetsonおよびQualcomm系ボードは[共通arm64手順](../ARM64_PLATFORMS.md)を確認してください。

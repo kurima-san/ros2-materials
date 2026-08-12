@@ -21,3 +21,8 @@ docker compose run --rm --no-deps glim \
 ```
 
 この構成はx86_64向けです。JetsonではJetPack/L4Tに合うイメージを別途用意してください。
+
+
+## arm64ボード
+
+JetsonおよびQualcomm系ボードは[共通arm64手順](../ARM64_PLATFORMS.md)を確認してください。

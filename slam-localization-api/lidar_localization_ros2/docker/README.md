@@ -13,6 +13,7 @@ Ubuntu 22.04 / ROS 2 Humble と、このガイドの修正版 `CMakeLists.txt` �
 | オールインワン | [`all-in-one/`](all-in-one/) | 上記3機能を1イメージ・1コンテナへ統合 |
 
 独立構成同士はLinux host networkと同じ`ROS_DOMAIN_ID`で接続します。
+JetsonおよびQualcomm系arm64ボードは、先に[`ARM64_PLATFORMS.md`](ARM64_PLATFORMS.md)を確認してください。
 
 ```bash
 cd slam-localization-api/lidar_localization_ros2/docker

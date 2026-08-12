@@ -90,7 +90,23 @@ sha256sum -c IMAGE_FILE.tar.gz.sha256
 gunzip -c IMAGE_FILE.tar.gz | docker load
 </code></pre>
 <p>使用する構成の<code>compose.yaml</code>、イメージtar.gz、SHA-256ファイルを一緒に配布する。作成側と配布先のCPUアーキテクチャを合わせ、GLIM構成の配布先ではNVIDIA DriverとContainer Toolkitを別途準備する。</p>
-<h3>14.7 実機投入前チェック</h3>
+<h3>14.7 Jetson・Qualcomm系arm64ボード</h3>
+<p>arm64では構成ごとの対応範囲が異なる。MID-360センサー単体とLocalization単体は、Ubuntu 22.04を実行するボード上でnative buildする。使用イメージが<code>arm64/linux</code>になったことを<code>docker image inspect</code>で確認する。</p>
+<pre><code># Jetson / Qualcomm共通: センサー
+cd docker/mid360
+docker compose build --pull
+docker image inspect livox-mid360:humble \
+  --format '{{.Architecture}}/{{.Os}}'
+
+# Localization
+cd ..
+docker compose build --pull localization
+docker image inspect lidar-localization-mid360:humble \
+  --format '{{.Architecture}}/{{.Os}}'
+</code></pre>
+<div class="warn"><strong>GLIMの扱い:</strong> 同梱GLIMおよびオールインワンDockerfileはx86_64用CUDA repositoryを使うためarm64では停止する。Jetson版はJetPack/L4Tと一致するbase image上で依存ライブラリとGLIMをsource buildして実機検証する必要がある。QualcommのAdreno/HexagonはCUDA互換ではないため、Mappingをx86_64 CUDA PCへ分離し、Qualcomm側はセンサー受信・bag収録・Localizationを担当させる。</div>
+<p>JetPack/Container Runtimeの確認、Qualcomm BSPの前提、headless運用、分散Mapping、arm64イメージ配布の詳細は<a href="docker/ARM64_PLATFORMS.md">Jetson・Qualcomm系arm64手順</a>を参照する。</p>
+<h3>14.8 実機投入前チェック</h3>
 <pre><code>docker compose config
 ros2 topic type /livox/lidar  # sensor_msgs/msg/PointCloud2
 ros2 topic type /livox/imu
