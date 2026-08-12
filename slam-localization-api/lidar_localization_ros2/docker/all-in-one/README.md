@@ -20,6 +20,7 @@ docker compose up stack
 ```
 
 設定ファイルの初期生成にはGPUを使わないため、`init` serviceはGPU要求を持ちません。
+`init`はprofileで隠していないため、追加オプションなしで上記コマンドから参照できます。
 `docker compose run ... stack true`を使うと、`true`の実行前にDockerが`stack`のGPUを
 割り当てようとして、CDI未設定の環境では `failed to discover GPU vendor from CDI` で
 停止します。初期生成には必ず上記の`init` serviceを使用してください。
@@ -31,8 +32,25 @@ nvidia-smi
 docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
 ```
 
-2つ目だけ失敗する場合は、ホスト側のNVIDIA Container ToolkitをDocker runtimeへ設定して
-Docker daemonを再起動してください。これはコンテナ内ではなくホスト側の設定です。
+2つ目だけ `failed to discover GPU vendor from CDI` で失敗する場合、GPU driverは動作して
+いますが、ホスト側のNVIDIA Container Toolkit/CDI設定が完了していません。次をホストで
+実行します（コンテナ内では実行しません）。
+
+```bash
+# コマンドがなければ、先にNVIDIA Container Toolkitをインストールする
+command -v nvidia-ctk
+
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo mkdir -p /etc/cdi
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+sudo systemctl restart docker
+
+nvidia-ctk cdi list
+docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
+```
+
+最後のDockerコマンドが成功してから `docker compose up stack` を実行してください。
+Dockerを再起動すると既存コンテナへ影響するため、実行前に必要なコンテナを停止します。
 
 `lidar_localization_ros2` は更新されるため、Dockerfileでは同梱の巨大な
 `CMakeLists.txt` を丸ごと上書きせず、必要な `ndt_omp` リンク修正だけを適用します。
