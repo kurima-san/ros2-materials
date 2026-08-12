@@ -19,6 +19,21 @@ xhost +local:docker
 docker compose up stack
 ```
 
+`lidar_localization_ros2` は更新されるため、Dockerfileでは同梱の巨大な
+`CMakeLists.txt` を丸ごと上書きせず、必要な `ndt_omp` リンク修正だけを適用します。
+これにより、上流でソースやインストール対象が追加された後でも、cloneしたリビジョンと
+CMakeの内容が食い違いません。
+
+ビルドに失敗した場合は、末尾の `exit code: 1` だけでなく、その前にある最初のエラーを
+確認できるよう、キャッシュを無効化してプレーンログを保存してください。
+
+```bash
+docker compose build --no-cache --progress=plain 2>&1 | tee build.log
+```
+
+依存関係の導入と `colcon build` は別レイヤーになっているため、失敗したステップが
+`rosdep` とコンパイルのどちらかもログから判別できます。
+
 既定ではMID-360、GLIM、Localizationをすべて起動します。GLIMで地図作成だけを行う場合はLocalizationを無効化します。
 
 ```bash

@@ -1,15 +1,15 @@
---- CMakeLists.txt.upstream
+--- CMakeLists.txt
 +++ CMakeLists.txt
-@@
-   pybind11_add_module(g2_ndt_score src/g2_ndt_score_pybind.cpp)
+@@ -282,10 +282,10 @@
    target_include_directories(g2_ndt_score PRIVATE
      include
--    ${PCL_INCLUDE_DIRS}
+     ${PCL_INCLUDE_DIRS}
 -    ${ndt_omp_ros2_INCLUDE_DIRS})
-+    ${PCL_INCLUDE_DIRS}
 +  )
    target_compile_features(g2_ndt_score PRIVATE cxx_std_17)
    target_link_libraries(g2_ndt_score PRIVATE
 -    ${ndt_omp_ros2_LIBRARIES}
 +    ndt_omp_ros2::ndt_omp
-     ${PCL_LIBRARIES})
+     ${PCL_LIBRARIES}
+   )
+   install(TARGETS g2_ndt_score
