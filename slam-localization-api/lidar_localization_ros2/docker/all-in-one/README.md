@@ -1,9 +1,9 @@
-# MID-360 + GLIM + lidar_localization_ros2 オールインワンイメージ
+# MID-360 / MID-360S + GLIM + lidar_localization_ros2 オールインワンイメージ
 
-1つのイメージにMID-360 driver、GLIM、Localizationの3機能を収録しています。ただし、実行単位は次のどちらかです。
+1つのイメージにMID-360/MID-360S driver、GLIM、Localizationの3機能を収録しています。ただし、実行単位は次のどちらかです。
 
-- **Mapping:** MID-360（またはbag再生）+ GLIM
-- **Localization:** MID-360（またはbag再生）+ lidar_localization_ros2
+- **Mapping:** MID-360またはMID-360S（またはbag再生）+ GLIM
+- **Localization:** MID-360またはMID-360S（またはbag再生）+ lidar_localization_ros2
 
 GLIMとLocalizationを同時には起動しません。Compose service名も用途を表す`mapping`と`localization`です。
 
@@ -19,7 +19,8 @@ docker run --rm \
   -v "${HOME}/mid360_stack/config:/data/config:rw" \
   mid360-glim-localization:humble-cuda12.6 true
 
-$EDITOR ~/mid360_stack/config/MID360_config.json
+$EDITOR ~/mid360_stack/config/MID360s_config.json  # MID-360S実機
+# MID-360を使う場合: $EDITOR ~/mid360_stack/config/MID360_config.json
 $EDITOR ~/mid360_stack/config/glim/config_ros.json
 $EDITOR ~/mid360_stack/config/localization.yaml
 # localization.yamlのmap_pathを /data/maps/地図名.pcd にする
@@ -32,16 +33,33 @@ docker compose down --remove-orphans
 docker compose build --no-cache --pull --progress=plain 2>&1 | tee build.log
 ```
 
+## センサーモデルを選ぶ
+
+既定値は実機に合わせて`mid360s`です。MID-360SとMID-360の両方の設定ファイルを生成し、`SENSOR_MODEL`で選択します。Livox driverのlaunch名は両機種ともupstreamの`rviz_MID360_launch.py`です。各JSONのLiDAR IPを実機に合わせてください。
+
+```bash
+# MID-360S（既定）
+docker compose up mapping
+
+# MID-360
+SENSOR_MODEL=mid360 docker compose up mapping
+```
+
+同じ選択方法を`localization`にも使用できます。bag再生時はセンサードライバを起動しないため、`SENSOR_MODEL`は使用しません。
+
 ## リアルタイム実行
 
 ```bash
 xhost +local:docker
 
-# センサー + GLIM（地図作成）
+# MID-360S + GLIM（地図作成、既定）
 docker compose up mapping
 
-# または、センサー + Localization（既存地図で自己位置推定）
+# または、MID-360S + Localization（既存地図で自己位置推定）
 docker compose up localization
+
+# MID-360 + Localization
+SENSOR_MODEL=mid360 docker compose up localization
 ```
 
 同時には起動しません。停止は`Ctrl+C`です。地図や設定はそれぞれ`~/ros2_maps`、`~/mid360_stack/config`に残ります。
@@ -78,7 +96,7 @@ INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
   LOCALIZATION_RVIZ=true docker compose up localization
 ```
 
-bag modeではMID-360 driverを起動せず、コンテナ内で`ros2 bag play --clock`を実行し、処理nodeへ`use_sim_time=true`を渡します。したがってホスト側で別途bagをplayする必要はありません。
+bag modeではMID-360/MID-360S driverを起動せず、コンテナ内で`ros2 bag play --clock`を実行し、処理nodeへ`use_sim_time=true`を渡します。したがってホスト側で別途bagをplayする必要はありません。
 
 ## GPU/CDI確認
 

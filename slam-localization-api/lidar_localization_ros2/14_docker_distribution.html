@@ -7,7 +7,7 @@
 <div class="layout"><nav class="sidebar"><strong>章メニュー</strong><a href="index.html">トップ / 全体メニュー</a><a href="01_architecture.html">1. 全体構成</a><a href="02_livox_setup.html">2. Livox MID-360 セットアップ</a><a href="03_glim_setup.html">3. GLIM セットアップ・マップ作成</a><a href="04_lidar_localization_setup.html">4. lidar_localization_ros2 セットアップ</a><a href="05_map_generation.html">5. 2Dマップ生成・修正</a><a href="06_rviz_files.html">6. 専用Launch・RViz</a><a href="07_realtime.html">7. リアルタイム運用</a><a href="08_rosbag.html">8. rosbag運用</a><a href="09_recovery.html">9. 途中失敗時の復旧</a><a href="10_diagnostics.html">10. 診断・トラブル対処</a><a href="11_navigation.html">11. Nav2ナビゲーション</a><a href="12_auto_relocalization.html">12. 自動再ローカリゼーション</a><a href="13_reference.html">13. 参考情報</a><a href="14_docker_distribution.html" class="active">14. Docker環境の作成・配布</a></nav>
 <main class="main"><div class="breadcrumb"><a href="index.html">トップ</a> / 14. Docker環境の作成・配布</div><section class="page">
 <h2>14. Docker環境の作成・配布</h2>
-<div class="ok"><strong>4構成を同梱:</strong> MID-360、GLIM、lidar_localization_ros2をそれぞれ独立してbuildできる構成と、3機能を収録したオールインワンイメージを用意した。オールインワンでも実行時は「センサー＋GLIM」または「センサー＋Localization」を選ぶ。</div>
+<div class="ok"><strong>4構成を同梱:</strong> MID-360/MID-360S、GLIM、lidar_localization_ros2をそれぞれ独立してbuildできる構成と、3機能を収録したオールインワンイメージを用意した。オールインワンでも実行時は「センサー＋GLIM」または「センサー＋Localization」を選ぶ。</div>
 <h3>14.1 構成を選ぶ</h3>
 <table><tr><th>用途</th><th>場所</th><th>イメージ</th></tr>
 <tr><td>MID-360センサー単体</td><td><a href="docker/mid360/README.md"><code>docker/mid360/</code></a></td><td><code>livox-mid360:humble</code></td></tr>
@@ -15,7 +15,7 @@
 <tr><td>Localization単体</td><td><a href="docker/README.md"><code>docker/</code></a></td><td><code>lidar-localization-mid360:humble</code></td></tr>
 <tr><td>3機能収録オールインワン</td><td><a href="docker/all-in-one/README.md"><code>docker/all-in-one/</code></a></td><td><code>mid360-glim-localization:humble-cuda12.6</code></td></tr></table>
 <p>個別更新、障害分離、複数PCへの配置を重視する場合は独立構成を使う。初期評価や1台のGPU PCへの一括導入を重視する場合はオールインワンを使う。</p>
-<h3>14.2 共通前提</h3><ul><li>Docker EngineとCompose pluginを導入する。</li><li>GLIMを含む構成にはNVIDIA DriverとNVIDIA Container Toolkitが必要。</li><li>MID-360 UDPとROS 2 DDSのためLinux host networkを使用する。</li><li>設定、地図、bagはイメージへ焼き込まずvolumeに保存する。</li></ul>
+<h3>14.2 共通前提</h3><ul><li>Docker EngineとCompose pluginを導入する。</li><li>GLIMを含む構成にはNVIDIA DriverとNVIDIA Container Toolkitが必要。</li><li>MID-360/MID-360S UDPとROS 2 DDSのためLinux host networkを使用する。</li><li>設定、地図、bagはイメージへ焼き込まずvolumeに保存する。</li></ul>
 <pre><code>nvidia-smi
 docker run --rm --gpus all ubuntu:22.04 nvidia-smi
 </code></pre>
@@ -52,7 +52,7 @@ docker compose run --rm localization
 </code></pre>
 <div class="note">GLIMとLocalizationを常に同時実行する必要はない。地図作成時はGLIM、作成済みPCDで自己位置推定するときはLocalizationを選ぶ。複数MID-360の点群を単純に同じtopicへ混ぜず、時刻同期・外部標定後の統合topicを使用する。</div>
 <h3>14.5 オールインワンをbuild・初期設定する</h3>
-<p>オールインワンは3機能を収録した1つのイメージであり、3機能同時実行という意味ではない。Compose serviceは用途が明確な<code>mapping</code>と<code>localization</code>を用意する。</p>
+<p>オールインワンはMID-360とMID-360Sの両設定、および3機能を収録した1つのイメージであり、3機能同時実行という意味ではない。Compose serviceは用途が明確な<code>mapping</code>と<code>localization</code>を用意する。</p>
 <pre><code>cd docker/all-in-one
 mkdir -p ~/mid360_stack/config ~/ros_bags ~/ros2_maps
 docker compose build
@@ -62,19 +62,27 @@ docker run --rm \
   -v "${HOME}/mid360_stack/config:/data/config:rw" \
   mid360-glim-localization:humble-cuda12.6 true
 
-$EDITOR ~/mid360_stack/config/MID360_config.json
+$EDITOR ~/mid360_stack/config/MID360s_config.json  # MID-360S
+# MID-360の場合: $EDITOR ~/mid360_stack/config/MID360_config.json
 $EDITOR ~/mid360_stack/config/glim/config_ros.json
 $EDITOR ~/mid360_stack/config/localization.yaml
 # localization.yamlのmap_pathを /data/maps/地図名.pcd に変更
 </code></pre>
-<h3>14.6 オールインワンでリアルタイム処理する</h3>
+<h3>14.6 センサーモデルを選んでリアルタイム処理する</h3>
+<p>既定は実機に合わせて<code>SENSOR_MODEL=mid360s</code>。両機種のJSONを生成し、MID-360を使う場合だけ<code>SENSOR_MODEL=mid360</code>を指定する。bag modeではdriverを起動しないため指定不要。</p>
 <pre><code>xhost +local:docker
 
-# MID-360 + GLIM: 地図作成
+# MID-360S + GLIM: 地図作成（既定）
 docker compose up mapping
 
-# またはMID-360 + Localization: 既存地図で自己位置推定
+# MID-360 + GLIM
+SENSOR_MODEL=mid360 docker compose up mapping
+
+# またはMID-360S + Localization: 既存地図で自己位置推定
 docker compose up localization
+
+# MID-360 + Localization
+SENSOR_MODEL=mid360 docker compose up localization
 </code></pre>
 <div class="note"><strong>排他的に選択:</strong> MappingとLocalizationは同時起動しない。地図を作るときは<code>mapping</code>、作成済み地図で自己位置を求めるときは<code>localization</code>を実行する。</div>
 <p>入力点群・IMU・TFを処理と同時にホストの<code>~/ros_bags</code>へ保存する場合:</p>
@@ -95,7 +103,7 @@ INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
 INPUT_MODE=bag BAG_PATH=/data/bags/BAG_DIRECTORY \
   LOCALIZATION_RVIZ=true docker compose up localization
 </code></pre>
-<p><code>BAG_PATH</code>はコンテナ内pathで指定する。bag modeではセンサードライバの代わりにコンテナ内で<code>ros2 bag play --clock</code>を起動し、GLIMまたはLocalizationへ<code>use_sim_time=true</code>を渡す。ホスト側で別途playする必要はない。</p>
+<p><code>BAG_PATH</code>はコンテナ内pathで指定する。bag modeではMID-360/MID-360S driverの代わりにコンテナ内で<code>ros2 bag play --clock</code>を起動し、GLIMまたはLocalizationへ<code>use_sim_time=true</code>を渡す。ホスト側で別途playする必要はない。</p>
 <h3>14.8 オフライン配布</h3>
 <pre><code># 例: 4イメージを保存
 for image in \

@@ -34,6 +34,7 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git \
     && cd livox_ros_driver2 && ./build.sh humble \
     && mkdir -p /opt/stack_defaults \
     && cp config/MID360_config.json /opt/stack_defaults/MID360_config.json \
+    && cp config/MID360_config.json /opt/stack_defaults/MID360s_config.json \
     && rm -rf /opt/livox_ws/build /opt/livox_ws/log
 
 WORKDIR /opt/localization_ws/src

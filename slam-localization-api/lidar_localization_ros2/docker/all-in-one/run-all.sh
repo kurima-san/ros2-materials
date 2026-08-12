@@ -3,6 +3,7 @@ set -euo pipefail
 
 pipeline=${PIPELINE:-}
 input_mode=${INPUT_MODE:-realtime}
+sensor_model=${SENSOR_MODEL:-mid360s}
 pids=()
 
 case "$pipeline" in
@@ -12,6 +13,11 @@ esac
 case "$input_mode" in
   realtime|bag) ;;
   *) echo >&2 "INPUT_MODE must be 'realtime' or 'bag'"; exit 2 ;;
+esac
+case "$sensor_model" in
+  mid360) sensor_config=/data/config/MID360_config.json ;;
+  mid360s) sensor_config=/data/config/MID360s_config.json ;;
+  *) echo >&2 "SENSOR_MODEL must be 'mid360' or 'mid360s'"; exit 2 ;;
 esac
 
 stop_all() {
@@ -23,7 +29,7 @@ trap stop_all INT TERM EXIT
 
 if [[ "$input_mode" == realtime ]]; then
   ros2 launch livox_ros_driver2 rviz_MID360_launch.py \
-    user_config_path:=/data/config/MID360_config.json &
+    user_config_path:="$sensor_config" &
   pids+=("$!")
 else
   if [[ -z "${BAG_PATH:-}" || ! -e "${BAG_PATH}" ]]; then
