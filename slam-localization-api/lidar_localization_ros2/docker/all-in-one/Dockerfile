@@ -38,17 +38,10 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git \
 
 WORKDIR /opt/localization_ws/src
 RUN git clone --depth 1 https://github.com/rsasaki0109/lidar_localization_ros2.git
-COPY fix/ndt_omp_target_link_fix.patch /tmp/ndt_omp_target_link_fix.patch
+COPY fix/apply_ndt_omp_target_link_fix.py /tmp/apply_ndt_omp_target_link_fix.py
 WORKDIR /opt/localization_ws/src/lidar_localization_ros2
-RUN if git apply --check /tmp/ndt_omp_target_link_fix.patch; then \
-      git apply /tmp/ndt_omp_target_link_fix.patch; \
-    elif grep -q 'ndt_omp_ros2::ndt_omp' CMakeLists.txt; then \
-      echo 'ndt_omp target-link fix is already present upstream'; \
-    else \
-      echo >&2 'Unable to apply the ndt_omp target-link fix to the cloned revision'; \
-      exit 1; \
-    fi \
-    && rm /tmp/ndt_omp_target_link_fix.patch
+RUN python3 /tmp/apply_ndt_omp_target_link_fix.py CMakeLists.txt \
+    && rm /tmp/apply_ndt_omp_target_link_fix.py
 WORKDIR /opt/localization_ws
 RUN source /opt/ros/humble/setup.bash \
     && rosdep update \
