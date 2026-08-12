@@ -37,8 +37,9 @@ docker compose build --no-cache --progress=plain 2>&1 | tee build.log
 
 `ndt_omp_ros2` はHumbleのrosdep databaseに定義がないため、Localizationと同じworkspaceへ
 ソースをcloneしてbuildします。また、このイメージは `BUILD_TESTING=OFF` でbuildするので、
-Humbleで提供されないテスト専用rosdep keyの `ros_testing` だけを `rosdep install` の
-対象から除外します。`python3-pil` は除外せず、UbuntuのUniverse repositoryから導入します。
+Humbleで提供されないテスト専用rosdep keyの `ros_testing` は `rosdep install` の対象から
+除外します。環境によってAPT candidateが存在しない `python3-pil` もrosdepから除外し、
+同じPython moduleを提供する `Pillow` をpipで導入してimportまでbuild中に確認します。
 
 既定ではMID-360、GLIM、Localizationをすべて起動します。GLIMで地図作成だけを行う場合はLocalizationを無効化します。
 

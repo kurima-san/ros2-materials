@@ -11,10 +11,9 @@ RUN test "${TARGETARCH}" = "amd64" || \
     (echo >&2 "docker/all-in-one is amd64-only; see docker/ARM64_PLATFORMS.md"; exit 1)
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake curl git gpg python3-colcon-common-extensions python3-rosdep \
+    build-essential cmake curl git gpg python3-colcon-common-extensions python3-pip python3-rosdep \
     software-properties-common ros-humble-pcl-ros ros-humble-pcl-conversions \
     ros-humble-rviz2 ros-humble-tf2-eigen ros-humble-tf2-ros \
-    && add-apt-repository -y universe \
     && curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb -o /tmp/cuda-keyring.deb \
     && dpkg -i /tmp/cuda-keyring.deb && rm /tmp/cuda-keyring.deb \
     && curl -fsSL https://koide3.github.io/ppa/setup_ppa.sh | bash \
@@ -48,7 +47,9 @@ WORKDIR /opt/localization_ws
 RUN source /opt/ros/humble/setup.bash \
     && rosdep update \
     && rosdep install --from-paths src --ignore-src -r -y --rosdistro humble \
-       --skip-keys "ros_testing"
+       --skip-keys "python3-pil ros_testing" \
+    && python3 -m pip install --no-cache-dir Pillow \
+    && python3 -c "from PIL import Image; print('Pillow import check: OK')"
 RUN source /opt/ros/humble/setup.bash \
     && colcon build --merge-install --event-handlers console_direct+ \
        --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
