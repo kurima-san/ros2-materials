@@ -1142,7 +1142,21 @@ map                         # 3D Localizerが補正
 
 単純な`min_obstacle_height`だけでは、傾いた胴体から見た床を完全には除けない。床除去は重力整列フレームまたは局所地形モデルで行う。逆に、低い横木、机の天板、センサーより上の張り出しを消さないよう、**ロボット全高を覆う観測範囲**をRosbagで確認する。
 
-次はNav2 Local Costmapの最小例である。3Dボクセルを一定時間保持する`VoxelLayer`へ点群を入力し、膨張させる。
+実機の歩行ロボットで動的障害物を扱う場合、この教材では **Spatio-Temporal Voxel Layer（STVL）を第一候補**とする。標準`VoxelLayer`は依存関係が少なく導入確認には適するが、STVLは3Dボクセルを時間減衰でき、古い人・脚・ノイズ点がCostmapへ残り続ける問題を抑えやすい。
+
+| 観点 | STVL | 標準`VoxelLayer` |
+|---|---|---|
+| 動的障害物 | 時間減衰モデルで消去しやすい | RaytraceによるClearingが中心 |
+| 3D表現 | OpenVDBベースの疎な3D表現 | 高さ方向の固定Voxel数 |
+| センサーモデル | 視野角・Decayを設定できる | 設定項目が比較的少ない |
+| 導入 | 追加パッケージと依存関係が必要 | Nav2標準構成で始めやすい |
+| 推奨場面 | 人やロボットが動く実環境、3D LiDAR | Bringup初期、静的環境、比較用Fallback |
+
+STVLが常に正解という意味ではない。CPU・メモリ負荷、利用中のROS 2ディストリビューションに対応するブランチ、Plugin名とパラメータ名を、導入するSTVLのバージョンで確認する。最初に同じRosbagをSTVLと`VoxelLayer`へ再生し、点群停止後の残留時間、障害物の見逃し、更新周期を比較する。
+
+#### STVLをLocal Costmapへ設定する
+
+次はROS 2 Humble系STVLで使う構成の出発点である。センサーモデルの視野角は例示値をコピーせず、LiDARの仕様と取付姿勢に合わせる。
 
 ```yaml
 local_costmap:
@@ -1157,29 +1171,43 @@ local_costmap:
       height: 8.0
       resolution: 0.05
       footprint: "[[0.38, 0.24], [0.38, -0.24], [-0.38, -0.24], [-0.38, 0.24]]"
-      plugins: [voxel_layer, inflation_layer]
-      voxel_layer:
-        plugin: nav2_costmap_2d::VoxelLayer
+      plugins: [stvl_layer, inflation_layer]
+
+      stvl_layer:
+        plugin: spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer
         enabled: true
-        publish_voxel_map: true
-        origin_z: -0.10
-        z_resolution: 0.10
-        z_voxels: 20
-        max_obstacle_height: 1.90
+        voxel_decay: 2.0
+        decay_model: 0
+        voxel_size: 0.05
+        track_unknown_space: true
+        unknown_threshold: 15
         mark_threshold: 1
+        update_footprint_enabled: true
+        combination_method: 1
+        origin_z: -0.10
+        publish_voxel_map: true
+        transform_tolerance: 0.20
+        mapping_mode: false
         observation_sources: lidar3d
         lidar3d:
           topic: /navigation/obstacles
           data_type: PointCloud2
           marking: true
           clearing: true
-          obstacle_max_range: 5.0
-          raytrace_max_range: 6.0
+          obstacle_range: 5.0
           min_obstacle_height: 0.08
           max_obstacle_height: 1.90
           expected_update_rate: 0.10
-          observation_persistence: 0.20
+          observation_persistence: 0.0
           inf_is_valid: false
+          filter: voxel
+          voxel_min_points: 1
+          clear_after_reading: true
+          model_type: 1
+          vertical_fov_angle: 0.70
+          horizontal_fov_angle: 6.28
+          decay_acceleration: 5.0
+
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         inflation_radius: 0.55
@@ -1187,7 +1215,21 @@ local_costmap:
       always_send_full_costmap: true
 ```
 
-`footprint`は胴体だけでなく、通常歩容で脚が掃く領域を覆う。旋回時や横歩きで張り出しが変わる機体は最大包絡形状から始める。`clearing: true`を使うには、点群の観測原点までTFが引け、遮蔽されていない空間だけをRaytraceできることが前提である。
+`model_type`、視野角、Plugin識別子などはSTVLのリリースによって差があり得る。起動ログの「plugin class not found」や未宣言パラメータを無視せず、実際に導入したバージョンのREADME・サンプル設定と`ros2 pkg prefix spatio_temporal_voxel_layer`で確認する。
+
+調整は次の順序で行う。
+
+1. `voxel_size`をCostmap解像度と同程度から始め、CPU負荷と細い障害物の検出を比較する。
+2. `voxel_decay`を「観測が消えたら即座に開通」させず、センサー1～数周期の欠落を吸収できる値から試す。
+3. `mark_threshold`と`voxel_min_points`を上げ過ぎて、細い脚・柱・手すりを消していないか確認する。
+4. `vertical_fov_angle`と`horizontal_fov_angle`を実センサーに合わせ、観測していない空間をClearしない。
+5. 点群入力を意図的に停止し、Safety SupervisorがSTVLのDecayを待たずに停止することを確認する。
+
+`footprint`は胴体だけでなく、通常歩容で脚が掃く領域を覆う。旋回時や横歩きで張り出しが変わる機体は最大包絡形状から始める。STVLの`clearing: true`も、点群の観測原点までTFが引け、センサー視野が正しくモデル化されていることが前提である。Decayは「障害物が安全に消えた」ことを保証しないため、Safety SupervisorのSensor Timeoutを置き換えてはならない。
+
+#### 標準VoxelLayerへ戻す判断
+
+STVLの追加依存関係をまだ実機イメージへ固定できない、計算資源が不足する、または静的障害物だけでBringupを進めたい場合は、標準`nav2_costmap_2d::VoxelLayer`をFallbackとして使う。その場合も`marking`と`clearing`を分けて確認し、点群断をCostmapのClear扱いにはしない。まず標準LayerでTF・点群・Footprintを検証し、同じBagでSTVLへ差し替えると原因を切り分けやすい。
 
 Global Costmapには、保存済み2D占有地図を`StaticLayer`で読み込む。3D地図から2D地図を生成するときは、床からロボット全高までを投影し、通行不能な穴や段差を別途反映する。動的障害物の回避はLocal Costmap、長期的な通行可否はGlobal Costmapと役割を分ける。
 
@@ -1560,6 +1602,7 @@ ros2 bag record -o slam_debug \
 - [Nav2：Setting Up Transformations](https://docs.nav2.org/setup_guides/transformation/setup_transforms.html)
 - [Nav2：Navigation Concepts](https://docs.nav2.org/concepts/index.html)
 - [Nav2：Costmap 2D](https://docs.nav2.org/configuration/packages/configuring-costmaps.html)
+- [Spatio-Temporal Voxel Layer（STVL）](https://github.com/SteveMacenski/spatio_temporal_voxel_layer)
 - [Nav2：Smoothing Odometry using robot_localization](https://docs.nav2.org/setup_guides/odom/setup_robot_localization.html)
 - [Nav2：Using VIO to Augment Robot Odometry](https://docs.nav2.org/tutorials/docs/integrating_vio.html)
 - [ROS REP-105：Coordinate Frames for Mobile Platforms](https://www.ros.org/reps/rep-0105.html)

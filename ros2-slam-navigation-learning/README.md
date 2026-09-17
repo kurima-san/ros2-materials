@@ -29,7 +29,7 @@
 - 教材内検索
 - 学習テーマによる章の絞り込み
 - TF・Topic・データ経路の図解
-- 3D点群のVoxel Costmap設定、停止距離、実機試験手順
+- 3D点群のSTVL／Voxel Costmap設定、停止距離、実機試験手順
 - 2D、3D LiDAR、Visual SLAMの比較表
 - コマンドのコピーボタン
 - ダーク・ライト表示
