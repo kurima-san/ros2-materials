@@ -1062,7 +1062,332 @@ Nav2のCostmapでは、SLAMへの入力とは別に、複数の`observation_sour
 
 ---
 
-## 11。最小Bringup構成
+## 11。実機歩行ロボットで3D LiDAR障害物回避を実装する
+
+この章では、四足歩行ロボットを想定し、3D LiDARを**自己位置推定用**と**その場の障害物検出用**に分岐して、Nav2から歩容制御へ安全に接続する。以下はROS 2 Humble向けの出発点であり、トピック名、フレーム名、可動範囲、制動距離は実機に合わせて測定する。
+
+### 11.1 最初に決めるシステム境界
+
+標準Nav2は基本的に平面上の`x`、`y`、`yaw`を計画する。3D LiDARを搭載しても、階段を上る足先軌道や不整地の接触計画まで自動生成するわけではない。この構成の責務を次のように分ける。
+
+| 層 | 責務 | 停止時にも必要な出力 |
+|---|---|---|
+| 3D LiDAR Driver | 点群と正しい取得時刻をPublish | `/lidar/points` |
+| LIO / Leg Odometry | 胴体の連続6DoF姿勢を推定 | `odom -> base_link` |
+| 3D Localization | 保存地図との照合、大域補正 | `map -> odom` |
+| Point Cloud前処理 | 自己反射、床、遠方、ノイズを除去 | `/navigation/obstacles` |
+| Nav2 | 2D経路、局所回避、速度指令 | `/cmd_vel_nav` |
+| Safety Supervisor | 転倒、通信断、近接障害物を監視 | `/cmd_vel_safe`、停止状態 |
+| Gait Controller | 平面速度を安定な歩容・関節指令へ変換 | 関節指令、実行状態 |
+
+```mermaid
+flowchart LR
+    L["3D LiDAR<br>/lidar/points"] --> F["Crop・Voxel・Ground filter"]
+    L --> O["LIO"]
+    I["IMU"] --> O
+    E["Leg state"] --> O
+    O --> T1["odom → base_link"]
+    O --> LOC["3D Localization"]
+    M["保存済み3D地図"] --> LOC
+    LOC --> T2["map → odom"]
+    F --> C["Nav2 local_costmap"]
+    P["2D占有地図"] --> N["Nav2 Planner"]
+    T1 --> N
+    T2 --> N
+    C --> N
+    N --> V["/cmd_vel_nav"]
+    V --> S["Safety Supervisor"]
+    F --> S
+    S --> G["Gait Controller"]
+```
+
+重要なのは、同じ点群をそのまま全機能へ渡さないことである。Localizationには壁や柱を残した点群、Costmapには実機が今衝突し得る高さ範囲の点群、Safetyには低遅延な近接点群を渡す。
+
+### 11.2 フレームとトピックの実装契約
+
+推奨TFツリーは次の通りである。
+
+```text
+map                         # 3D Localizerが補正
+└── odom                    # 連続でジャンプしない座標
+    └── base_footprint      # Nav2用。roll/pitch=0、床面上
+        └── base_link       # 実際の胴体6DoF姿勢
+            ├── lidar_link  # URDF固定外部パラメータ
+            └── imu_link
+```
+
+実装によって`odom -> base_link`をLIOが直接出す場合は、`base_footprint`を別ノードで作る。ただし、`odom -> base_link`と`odom -> base_footprint`の両方から同じ子へ到達するループを作らない。次をBringupのインタフェースとして固定する。
+
+| 名前 | 型 | frame | 目安周期 | 用途 |
+|---|---|---|---:|---|
+| `/lidar/points` | `sensor_msgs/msg/PointCloud2` | `lidar_link` | LiDAR固有 | 原点群 |
+| `/imu/data` | `sensor_msgs/msg/Imu` | `imu_link` | 100 Hz以上を推奨 | LIO、転倒監視 |
+| `/lio/odometry` | `nav_msgs/msg/Odometry` | `odom` / `base_link` | 20 Hz以上を目安 | 連続姿勢 |
+| `/navigation/obstacles` | `PointCloud2` | センサーフレーム | 10 Hz以上を目安 | Local Costmap |
+| `/cmd_vel_nav` | `geometry_msgs/msg/Twist` | なし | Controller周期 | Nav2出力 |
+| `/cmd_vel_safe` | `geometry_msgs/msg/Twist` | なし | 歩容制御周期 | Safety後の指令 |
+
+周期値は合否そのものではない。最大速度での移動量、点群遅延、TF遅延、制御周期を測り、停止までに必要な距離より安全距離を大きくする。
+
+### 11.3 3D点群を障害物へ変換する
+
+前処理は次の順序から始める。
+
+1. NaNと機器仕様外の距離を除く。
+2. `base_link`近傍をCropして、脚や筐体の自己反射を除く。
+3. Voxel Downsampleで計算量を制限する。
+4. 床面と走行可能面を除き、衝突し得る高さを残す。
+5. 必要なら地面より低い点を崖・段差の別レイヤーへ渡す。
+6. 元の`header.stamp`を保った`PointCloud2`をPublishする。
+
+単純な`min_obstacle_height`だけでは、傾いた胴体から見た床を完全には除けない。床除去は重力整列フレームまたは局所地形モデルで行う。逆に、低い横木、机の天板、センサーより上の張り出しを消さないよう、**ロボット全高を覆う観測範囲**をRosbagで確認する。
+
+実機の歩行ロボットで動的障害物を扱う場合、この教材では **Spatio-Temporal Voxel Layer（STVL）を第一候補**とする。標準`VoxelLayer`は依存関係が少なく導入確認には適するが、STVLは3Dボクセルを時間減衰でき、古い人・脚・ノイズ点がCostmapへ残り続ける問題を抑えやすい。
+
+| 観点 | STVL | 標準`VoxelLayer` |
+|---|---|---|
+| 動的障害物 | 時間減衰モデルで消去しやすい | RaytraceによるClearingが中心 |
+| 3D表現 | OpenVDBベースの疎な3D表現 | 高さ方向の固定Voxel数 |
+| センサーモデル | 視野角・Decayを設定できる | 設定項目が比較的少ない |
+| 導入 | 追加パッケージと依存関係が必要 | Nav2標準構成で始めやすい |
+| 推奨場面 | 人やロボットが動く実環境、3D LiDAR | Bringup初期、静的環境、比較用Fallback |
+
+STVLが常に正解という意味ではない。CPU・メモリ負荷、利用中のROS 2ディストリビューションに対応するブランチ、Plugin名とパラメータ名を、導入するSTVLのバージョンで確認する。最初に同じRosbagをSTVLと`VoxelLayer`へ再生し、点群停止後の残留時間、障害物の見逃し、更新周期を比較する。
+
+#### STVLをLocal Costmapへ設定する
+
+次はROS 2 Humble系STVLで使う構成の出発点である。センサーモデルの視野角は例示値をコピーせず、LiDARの仕様と取付姿勢に合わせる。
+
+```yaml
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      global_frame: odom
+      robot_base_frame: base_footprint
+      update_frequency: 10.0
+      publish_frequency: 5.0
+      rolling_window: true
+      width: 8.0
+      height: 8.0
+      resolution: 0.05
+      footprint: "[[0.38, 0.24], [0.38, -0.24], [-0.38, -0.24], [-0.38, 0.24]]"
+      plugins: [stvl_layer, inflation_layer]
+
+      stvl_layer:
+        plugin: spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer
+        enabled: true
+        voxel_decay: 2.0
+        decay_model: 0
+        voxel_size: 0.05
+        track_unknown_space: true
+        unknown_threshold: 15
+        mark_threshold: 1
+        update_footprint_enabled: true
+        combination_method: 1
+        origin_z: -0.10
+        publish_voxel_map: true
+        transform_tolerance: 0.20
+        mapping_mode: false
+        observation_sources: lidar3d
+        lidar3d:
+          topic: /navigation/obstacles
+          data_type: PointCloud2
+          marking: true
+          clearing: true
+          obstacle_range: 5.0
+          min_obstacle_height: 0.08
+          max_obstacle_height: 1.90
+          expected_update_rate: 0.10
+          observation_persistence: 0.0
+          inf_is_valid: false
+          filter: voxel
+          voxel_min_points: 1
+          clear_after_reading: true
+          model_type: 1
+          vertical_fov_angle: 0.70
+          horizontal_fov_angle: 6.28
+          decay_acceleration: 5.0
+
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        inflation_radius: 0.55
+        cost_scaling_factor: 4.0
+      always_send_full_costmap: true
+```
+
+`model_type`、視野角、Plugin識別子などはSTVLのリリースによって差があり得る。起動ログの「plugin class not found」や未宣言パラメータを無視せず、実際に導入したバージョンのREADME・サンプル設定と`ros2 pkg prefix spatio_temporal_voxel_layer`で確認する。
+
+調整は次の順序で行う。
+
+1. `voxel_size`をCostmap解像度と同程度から始め、CPU負荷と細い障害物の検出を比較する。
+2. `voxel_decay`を「観測が消えたら即座に開通」させず、センサー1～数周期の欠落を吸収できる値から試す。
+3. `mark_threshold`と`voxel_min_points`を上げ過ぎて、細い脚・柱・手すりを消していないか確認する。
+4. `vertical_fov_angle`と`horizontal_fov_angle`を実センサーに合わせ、観測していない空間をClearしない。
+5. 点群入力を意図的に停止し、Safety SupervisorがSTVLのDecayを待たずに停止することを確認する。
+
+`footprint`は胴体だけでなく、通常歩容で脚が掃く領域を覆う。旋回時や横歩きで張り出しが変わる機体は最大包絡形状から始める。STVLの`clearing: true`も、点群の観測原点までTFが引け、センサー視野が正しくモデル化されていることが前提である。Decayは「障害物が安全に消えた」ことを保証しないため、Safety SupervisorのSensor Timeoutを置き換えてはならない。
+
+#### 標準VoxelLayerへ戻す判断
+
+STVLの追加依存関係をまだ実機イメージへ固定できない、計算資源が不足する、または静的障害物だけでBringupを進めたい場合は、標準`nav2_costmap_2d::VoxelLayer`をFallbackとして使う。その場合も`marking`と`clearing`を分けて確認し、点群断をCostmapのClear扱いにはしない。まず標準LayerでTF・点群・Footprintを検証し、同じBagでSTVLへ差し替えると原因を切り分けやすい。
+
+Global Costmapには、保存済み2D占有地図を`StaticLayer`で読み込む。3D地図から2D地図を生成するときは、床からロボット全高までを投影し、通行不能な穴や段差を別途反映する。動的障害物の回避はLocal Costmap、長期的な通行可否はGlobal Costmapと役割を分ける。
+
+### 11.4 Nav2から歩容制御へ接続する
+
+Nav2の`/cmd_vel`を関節へ直接接続しない。Adapterは少なくとも次を行う。
+
+- `linear.x`、`linear.y`、`angular.z`を機体座標の歩容指令へ変換する。
+- 歩容が対応しない自由度をゼロにする。
+- 速度、加速度、角加速度、Jerkを歩容の安定範囲へ制限する。
+- 指令Timeout時はゼロ速度へ遷移する。
+- 歩容未確立、転倒、保護停止中は非ゼロ指令を拒否する。
+- 非常停止はROS 2ノードとは独立した安全回路でも成立させる。
+
+Nav2側でも速度を制限するが、実機Safety SupervisorとGait Controllerでも必ず再制限する。設定例：
+
+```yaml
+controller_server:
+  ros__parameters:
+    controller_frequency: 20.0
+    min_x_velocity_threshold: 0.01
+    min_y_velocity_threshold: 0.01
+    min_theta_velocity_threshold: 0.01
+    FollowPath:
+      plugin: dwb_core::DWBLocalPlanner
+      min_vel_x: -0.10
+      max_vel_x: 0.35
+      max_vel_y: 0.20
+      max_vel_theta: 0.60
+      acc_lim_x: 0.30
+      acc_lim_y: 0.25
+      acc_lim_theta: 0.50
+      decel_lim_x: -0.50
+      decel_lim_y: -0.40
+      decel_lim_theta: -0.80
+```
+
+これらは安全値ではなく例である。係留、吊り下げ、低速、保護具の順に試験し、実測した安定限界より十分低く設定する。後退・横歩きできない機体では、該当速度を許可せず、PlannerとControllerの運動モデルも一致させる。
+
+### 11.5 Safety Supervisorと停止距離
+
+Costmapは経路計画用であり、単独の安全装置ではない。Safety SupervisorはNav2より下流に置き、最新の近接観測、姿勢、歩容状態、通信Heartbeatを使って`/cmd_vel_nav`を許可・減速・停止する。
+
+停止距離は概算でも記録する。
+
+```text
+d_stop = v * (t_sensor + t_filter + t_network + t_control) + v^2 / (2 * a_brake) + margin
+```
+
+- `v`：試験する最大速度
+- `t_*`：センサー取得から歩容制御反映までの最悪値
+- `a_brake`：転倒せず停止できる実測減速度
+- `margin`：点群の死角、足の振り出し、時刻揺らぎを含む余裕
+
+警告距離と停止距離は、この値より大きく取る。ROS時刻が停止・逆行した場合、点群がTimeoutした場合、TFが期限内に得られない場合は、**障害物なし**ではなく停止側へ倒す。
+
+### 11.6 起動順序とLifecycle
+
+実機では一括起動してすぐ歩かせず、次のゲートを通す。
+
+1. Hardware E-stopを押した状態で、LiDAR、IMU、関節状態を起動する。
+2. 静止状態でIMU BiasとLIOを初期化する。
+3. TFが単一ツリーになり、点群がRViz上でロボット運動と一致することを確認する。
+4. 3D Localizationを起動し、初期姿勢と整合度を確認する。
+5. Costmapを起動し、既知・未知・障害物・Clearingを確認する。
+6. Nav2 LifecycleノードをActivateする。
+7. Safety Supervisorを最後にArmし、最初は速度上限を低くする。
+8. 目視範囲内の単一Goalから試験する。
+
+```bash
+# 接続契約を確認
+ros2 topic hz /lidar/points
+ros2 topic delay /lidar/points
+ros2 topic hz /lio/odometry
+ros2 run tf2_ros tf2_echo odom base_footprint
+ros2 run tf2_ros tf2_echo base_link lidar_link
+
+# 点群とCostmapを確認
+ros2 topic echo /navigation/obstacles --once
+ros2 topic echo /local_costmap/costmap --once
+
+# Nav2を有効化する前に、指令の行き先と停止を確認
+ros2 topic info /cmd_vel_nav --verbose
+ros2 topic hz /cmd_vel_safe
+```
+
+Launchは責務別にIncludeし、Navigation終了時や例外時にはSafety側がTimeoutで停止できるようにする。
+
+```python
+# my_robot_bringup/launch/autonomy.launch.py の構成例
+from launch import LaunchDescription
+from launch.actions import IncludeLaunchDescription, RegisterEventHandler
+from launch.event_handlers import OnShutdown
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    pointcloud_filter = Node(
+        package="my_robot_perception",
+        executable="pointcloud_filter",
+        parameters=["config/pointcloud_filter.yaml"],
+        remappings=[("points_in", "/lidar/points"),
+                    ("points_out", "/navigation/obstacles")],
+    )
+    safety = Node(
+        package="my_robot_safety",
+        executable="velocity_supervisor",
+        parameters=["config/safety.yaml"],
+        remappings=[("cmd_vel_in", "/cmd_vel_nav"),
+                    ("cmd_vel_out", "/cmd_vel_safe")],
+    )
+    # 実装ではsensor、odometry、localization、navigationも
+    # IncludeLaunchDescriptionで明示的に追加する。
+    return LaunchDescription([pointcloud_filter, safety])
+```
+
+上の例は構成を示す骨格であり、そのまま完成品として使わない。特に相対パスは実装時に`ament_index_python`でPackage Shareから解決する。
+
+### 11.7 段階試験と合格条件
+
+| 段階 | 試験 | 合格条件の例 |
+|---|---|---|
+| 1。静止 | 10分間の点群、IMU、TF記録 | TF競合なし、時刻逆行なし、Odomの異常跳躍なし |
+| 2。吊り下げ | `/cmd_vel_safe`の符号とTimeout | 全軸の向きが正しく、通信断でゼロになる |
+| 3。係留低速 | 直進、旋回、横歩き | Costmap上の軌跡と実機が一致する |
+| 4。固定障害物 | 箱、細い柱、机の張り出し | 接触せず停止または回避し、消失後にClearingする |
+| 5。動的障害物 | 横切る人形など管理された対象 | 再計画または停止し、振動指令を出さない |
+| 6。異常注入 | 点群停止、TF停止、Localization跳躍 | 規定時間内に停止し、勝手に再発進しない |
+| 7。長時間 | 実運用コースを反復 | CPU、遅延、Localization品質が上限内 |
+
+試験ごとに`/tf`、`/tf_static`、点群、Odom、Costmap、Nav2 Action、入力と出力の両`cmd_vel`、Safety状態、関節状態をRosbagへ保存する。障害物との最小距離、停止時間、最大姿勢角、再計画回数を同じスクリプトで集計し、パラメータ変更前後を比較する。
+
+### 11.8 実機で起きやすい失敗
+
+| 症状 | 確認箇所 | 対策 |
+|---|---|---|
+| 歩行の上下動で床が障害物になる | 点群処理フレーム、IMU重力方向 | 重力整列後に床除去し、胴体固定の高さ閾値だけに頼らない |
+| 脚がCostmapへ映る | LiDAR外部パラメータ、自己マスク | 最大可動域を自己マスクし、実障害物まで消していないか確認 |
+| 旋回時に壁が二重になる | Deskew、時刻同期、LIO | Hardware timestampとIMU同期を修正する |
+| 障害物が消えず詰まる | Clearing、観測原点、Persistence | Raytrace可能なTF、Range、保持時間を見直す |
+| 障害物を消し過ぎる | 遮蔽、Downsample、Clearing | 原点から観測できた空間だけClearする |
+| Localization補正で指令が跳ねる | TF所有者、Controller frame | Local Costmapは`odom`、大域補正は`map -> odom`へ分離する |
+| 狭路で左右に振動する | Footprint、Inflation、速度制限 | 脚包絡を反映し、角速度と加速度を落としてCriticを調整する |
+| 点群断で走り続ける | Watchdog設計 | Sensor timeoutをSafety停止条件にする |
+
+### 11.9 最小構成から発展する判断
+
+- 平坦な屋内であれば、3D点群を2D Costmapへ投影する構成から始める。
+- 坂や緩い起伏では、局所標高、傾斜、粗さをTraversability Costへ変換する。
+- 穴、崖、階段では、正の障害物検出だけでなくNegative obstacle検出を追加する。
+- 脚の接地点を個別に選ぶ必要がある地形では、Nav2は大域経路までとし、局所はFootstep / MPC Plannerへ委譲する。
+- 人と同じ空間で運用する場合は、Costmap調整とは別にリスクアセスメント、安全規格、速度・力制限、独立停止系を設計する。
+
+この境界を守ると、Nav2を「3D歩行制御器」に見立てず、2Dの目的地移動、3D知覚、歩容安定化、安全停止を個別に検証できる。
+
+---
+
+## 12。最小Bringup構成
 
 パッケージを次の責務に分けると、SLAM方式を変更しやすい。
 
@@ -1102,11 +1427,11 @@ my_robot_bringup/
 
 ---
 
-## 12。デバッグの順序
+## 13。デバッグの順序
 
 SLAMが動かないとき、パラメータを無作為に変更するのではなく、入力から順に確認する。
 
-### 12.1 推奨確認順
+### 13.1 推奨確認順
 
 1. センサートピックが存在する
 2. メッセージ型が合う
@@ -1124,7 +1449,7 @@ SLAMが動かないとき、パラメータを無作為に変更するのでは�
 14. `/cmd_vel`が出る
 15. 実機が正しい方向へ動く
 
-### 12.2 症状別チェック
+### 13.2 症状別チェック
 
 | 症状 | 主な原因候補 |
 |---|---|
@@ -1141,7 +1466,7 @@ SLAMが動かないとき、パラメータを無作為に変更するのでは�
 | Visual Odomが頻繁にLost | 暗所、白壁、Blur、CameraInfo、画像同期 |
 | LIO開始直後に飛ぶ | IMU初期化、単位、軸、時刻Offset、Extrinsic |
 
-### 12.3 Rosbagで再現する
+### 13.3 Rosbagで再現する
 
 SLAM開発では、問題のあるセンサーデータをBagに残す。
 
@@ -1159,9 +1484,9 @@ ros2 bag record -o slam_debug \
 
 ---
 
-## 13。実機導入の合格基準
+## 14。実機導入の合格基準
 
-### 13.1 Odom
+### 14.1 Odom
 
 - 直進時に横方向へ大きく流れない
 - その場旋回後、位置が大きく飛ばない
@@ -1169,7 +1494,7 @@ ros2 bag record -o slam_debug \
 - TFの周期がNav2の制御周期に対して十分
 - covarianceが不自然にゼロ固定ではない
 
-### 13.2 SLAM
+### 14.2 SLAM
 
 - 同じ壁が二重にならない
 - 開始地点へ戻ったとき、ループが閉じる
@@ -1177,14 +1502,14 @@ ros2 bag record -o slam_debug \
 - 地図解像度がロボットサイズに合う
 - 動く人を地図の固定障害物として大量に残さない
 
-### 13.3 Localization
+### 14.3 Localization
 
 - 再起動後に初期位置を設定できる
 - 走行中にLiDAR/点群/画像が地図と一致する
 - 一時的なスリップ後に復帰する
 - 誘拐状態から再ローカライズできるか、運用上の復旧手順がある
 
-### 13.4 Nav2
+### 14.4 Nav2
 
 - Global/Local Costmapが正しい
 - Footprintが実機外形を覆う
@@ -1195,7 +1520,7 @@ ros2 bag record -o slam_debug \
 
 ---
 
-## 14。推奨学習コース
+## 15。推奨学習コース
 
 ### コースA：まずNav2まで一通り理解する
 
@@ -1234,7 +1559,7 @@ ros2 bag record -o slam_debug \
 
 ---
 
-## 15。設計時の最終チェックリスト
+## 16。設計時の最終チェックリスト
 
 ### センサー
 
@@ -1270,13 +1595,14 @@ ros2 bag record -o slam_debug \
 
 ---
 
-## 16。公式資料
+## 17。公式資料
 
 ### ROS 2・Nav2
 
 - [Nav2：Setting Up Transformations](https://docs.nav2.org/setup_guides/transformation/setup_transforms.html)
 - [Nav2：Navigation Concepts](https://docs.nav2.org/concepts/index.html)
 - [Nav2：Costmap 2D](https://docs.nav2.org/configuration/packages/configuring-costmaps.html)
+- [Spatio-Temporal Voxel Layer（STVL）](https://github.com/SteveMacenski/spatio_temporal_voxel_layer)
 - [Nav2：Smoothing Odometry using robot_localization](https://docs.nav2.org/setup_guides/odom/setup_robot_localization.html)
 - [Nav2：Using VIO to Augment Robot Odometry](https://docs.nav2.org/tutorials/docs/integrating_vio.html)
 - [ROS REP-105：Coordinate Frames for Mobile Platforms](https://www.ros.org/reps/rep-0105.html)
@@ -1305,7 +1631,7 @@ ros2 bag record -o slam_debug \
 
 ---
 
-## 17。この教材で覚えるべき要点
+## 18。この教材で覚えるべき要点
 
 1. SLAM、Localization、Navigationは別の機能である
 2. ROS 2では、メッセージ、時刻、TFが接続契約になる
