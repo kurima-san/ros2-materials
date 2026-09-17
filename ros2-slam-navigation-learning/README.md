@@ -20,7 +20,8 @@
 3. Odometryと`map`、`odom`、`base_link`のTF構成
 4. 2D、3D LiDAR、Visual SLAMの選択
 5. LocalizationとNavigation2の接続
-6. Bringup、デバッグ、動作確認
+6. 実機歩行ロボットでの3D LiDAR障害物回避、安全監視、歩容制御接続
+7. Bringup、デバッグ、段階試験
 
 ## 主な機能
 
@@ -28,6 +29,7 @@
 - 教材内検索
 - 学習テーマによる章の絞り込み
 - TF・Topic・データ経路の図解
+- 3D点群のVoxel Costmap設定、停止距離、実機試験手順
 - 2D、3D LiDAR、Visual SLAMの比較表
 - コマンドのコピーボタン
 - ダーク・ライト表示
@@ -57,3 +59,4 @@
 - Visual SLAM / VO / VIO
 - Livox MID-360の手持ちMapping
 - 四足歩行ロボット、ヒューマノイド、車輪移動ロボット
+- 3D LiDARを使う実機の障害物回避と安全停止
