@@ -209,7 +209,7 @@ class="level1">
 <p>SLAMは名前にLocalizationを含むが、保存済み地図を使うLocalizationとは運用上の役割が異なる。また、Navigationは地図や現在位置を自分で作る機能ではない。Localizationから現在位置を受け取り、経路計画、障害物回避、速度指令の生成を担当する。</p>
 <section id="移動ロボットアプリケーションの2つの段階" class="level3">
 <h3>移動ロボットアプリケーションの2つの段階</h3>
-<div class="mermaid">flowchart LR
+<pre class="mermaid"><code>flowchart LR
     subgraph BUILD["地図作成段階"]
         BS["Sensor + Odometry"] --&gt; SLAM["SLAM&lt;br/&gt;地図を作る"]
         SLAM --&gt; MAP["保存済みMap"]
@@ -221,7 +221,7 @@ class="level1">
         MAP --&gt; NAV
         GOAL["目的地"] --&gt; NAV
         NAV --&gt; CTRL["Robot Control&lt;br/&gt;速度指令を実行する"]
-    end</div>
+    end</code></pre>
 <p>典型的には、最初にSLAMを起動して地図を保存する。通常運用ではSLAMを停止し、LocalizationとNavigationを同時に起動する。Navigationが出した速度指令は、車輪、脚、あるいは全身制御を担当するRobot Controlが実行する。したがって、アプリケーション全体は単一の「SLAM機能」ではなく、複数の機能をTopicとTFで接続した構成になる。</p>
 <blockquote><p><strong>最初に決めること</strong>：今行いたいのが「地図作成」「保存済み地図での自己位置推定」「目的地への自律移動」のどれかを明確にする。目的が違えば、起動するノードと必要な入力も変わる。</p></blockquote>
 <hr />
