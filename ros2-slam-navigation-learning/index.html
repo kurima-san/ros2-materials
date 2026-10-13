@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- BUILD: ros2-slam-navigation-learning-v1.2.1-20260917 -->
+<!-- BUILD: ros2-slam-navigation-learning-v1.3.0-20261013 -->
 <html lang="ja">
 <head>
   <meta charset="utf-8">
@@ -179,7 +179,8 @@
 class="level1">
 <h1>ROS 2でSLAMとNavigation2をつなぐための学習教材</h1>
 <p>対象環境：Ubuntu 22.04 / ROS 2 Humble<br />
-情報確認日：2026-09-17</p>
+情報確認日：2026-09-17<br />
+オドメトリ・TF章更新日：2026-10-13</p>
 <section id="この教材の目的" class="level2">
 <h2>この教材の目的</h2>
 <p>この教材は、SLAM内部の数式や最適化手法を詳しく学ぶことよりも、次の要素をROS
@@ -398,80 +399,667 @@ ToolboxのLocalizationモード</li>
 <hr />
 </section>
 </section>
-<section id="2ros-2で最も重要なtfの理解" class="level2">
-<h2>2。ROS 2で最も重要なTFの理解</h2>
-<p>Nav2の標準的なTF構造は次のとおりである。</p>
+<section id="2ros-2で最も重要なtfの理解"
+class="level2 odometry-chapter">
+<h2 class="odometry-chapter">2。ROS 2で最も重要なTFの理解</h2>
+<div id="odometry-guide">
+
+</div>
+<p>「地図上の自己位置が分かるのに、なぜオドメトリ（Odometry）も必要なのか」を、配信担当、時間、ナビゲーションでの使い道の順に理解する章である。まず、<strong><code>odom</code>を挟んでも、<code>map</code>上の自己位置は補正でジャンプし得る。連続性を保つのは<code>odom</code>上の位置・姿勢である</strong>、という点を押さえる。</p>
+<p>読み進める順序：</p>
+<ol type="1">
+<li><a href="#odom-publishers">TFの各辺は誰が出すのか</a></li>
+<li><a
+href="#odom-time-origin">オドメトリはいつからいつまでの移動なのか</a></li>
+<li><a
+href="#odom-composition">地図上の姿勢とオドメトリをどう結び付けるのか</a></li>
+<li><a href="#odom-timeline">計測・計算・Publish・制御の時系列</a></li>
+<li><a href="#odom-nav2-consumers">Nav2のどこで必要になるのか</a></li>
+<li><a href="#odom-slip">滑りで移動を見逃したらどうなるのか</a></li>
+</ol>
+<p>以降の数値例は、説明のため回転のない直線運動を仮定する。実機の位置・姿勢は並進と回転を組み合わせて扱う。Nav2の標準的なTF構造は次のとおりである。</p>
 <pre class="mermaid"><code>flowchart LR
-    MAP[&quot;map&lt;br/&gt;大域座標&quot;] --&gt; ODOM[&quot;odom&lt;br/&gt;連続座標&quot;]
-    ODOM --&gt; BASE[&quot;base_link&lt;br/&gt;ロボット本体&quot;]
-    BASE --&gt; SENSOR[&quot;lidar_link / camera_link / imu_link&quot;]</code></pre>
+    MAP[&quot;map&lt;br/&gt;地図の基準&quot;] --&gt;|&quot;Localizationが補正&quot;| ODOM[&quot;odom&lt;br/&gt;連続運動の基準&quot;]
+    ODOM --&gt;|&quot;Odometryが移動を推定&quot;| BASE[&quot;base_link&lt;br/&gt;ロボット本体&quot;]
+    BASE --&gt;|&quot;取付位置・姿勢&quot;| SENSOR[&quot;lidar_link / camera_link / imu_link&quot;]</code></pre>
 <p>TFで<code>map -&gt; odom</code>と書く場合、<code>map</code>が親フレーム、<code>odom</code>が子フレームである。これは、<code>map</code>座標系から見た<code>odom</code>座標系の位置・姿勢を表す。</p>
-<p>Nav2公式ドキュメントでも、<code>map -&gt; odom</code>、<code>odom -&gt; base_link</code>、<code>base_link -&gt; sensor frame</code>が基本要件として説明されている。</p>
-<section id="21-各フレームの役割" class="level3">
+<p>TFは座標系そのものを単独で送る仕組みではなく、<strong>親と子の関係を時刻付きで送る仕組み</strong>である。「誰が<code>odom</code>を出すか」という疑問は、<code>map -&gt; odom</code>と<code>odom -&gt; base_link</code>のどちらを指すのかに分けると解ける。</p>
+<section id="各フレームの役割" class="level3">
 <h3>2.1 各フレームの役割</h3>
 <table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
 <thead>
 <tr class="header">
-<th>TF</th>
+<th>座標系</th>
+<th>意味</th>
 <th>性質</th>
-<th>主なPublish担当</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>map -&gt; odom</code></td>
-<td>大域誤差を修正するため、ループ閉じ込みや再ローカライズ時に変化・ジャンプし得る</td>
-<td>SLAM、AMCL、3D Localization</td>
+<td><code>map</code></td>
+<td>保存地図や目的地の基準</td>
+<td>この基準での自己位置は、地図照合やループ閉じ込みで急に訂正されることがある</td>
 </tr>
 <tr class="even">
-<td><code>odom -&gt; base_link</code></td>
-<td>短時間で滑らかに連続する。長時間ではドリフトしてよい</td>
-<td>車輪/脚Odom、<code>robot_localization</code>、LIO、VIO</td>
+<td><code>odom</code></td>
+<td>地図による訂正と分離した、連続運動の基準</td>
+<td>この基準での自己位置は連続するように設計するが、長時間では誤差が蓄積する</td>
 </tr>
 <tr class="odd">
-<td><code>base_link -&gt; sensor</code></td>
-<td>センサー取付位置。基本的に固定</td>
-<td>URDF＋<code>robot_state_publisher</code>、static TF</td>
+<td><code>base_link</code></td>
+<td>ロボット本体に固定した基準</td>
+<td>ロボットと一緒に動く</td>
+</tr>
+<tr class="even">
+<td>センサーフレーム</td>
+<td>センサー計測値の基準</td>
+<td>本体との取付位置・姿勢をURDFなどで定義する</td>
 </tr>
 </tbody>
 </table>
-<p><code>map -&gt; base_link</code>を直接出すだけでは、Nav2が期待する大域補正と連続運動の分離ができない。</p>
+<p><strong>自分相対の座標系は<code>base_link</code>であり、<code>odom</code>ではない。</strong>
+<code>odom</code>原点は通常、初期化後は固定して扱い、その中をロボットが動く。ローリング型のLocal
+Costmapは表示・保持範囲がロボットに追従するが、<code>odom</code>原点自体を毎回動かすわけではない。</p>
 </section>
-<section id="22-なぜmapとodomを分けるのか" class="level3">
-<h3>2.2 なぜmapとodomを分けるのか</h3>
-<p>例えば、ロボットが廊下を一周して元の位置へ戻ったとする。</p>
-<ul>
-<li>車輪オドメトリでは、元の位置から30 cmずれている</li>
-<li>SLAMはループ閉じ込みによって、「本当は元の位置」と判断する</li>
-</ul>
-<p>このとき、<code>odom -&gt; base_link</code>を突然30
-cm移動させると、ローカル制御の速度計算が不安定になる。そこで次のように分担する。</p>
-<ul>
-<li><code>odom -&gt; base_link</code>は滑らかなまま維持する</li>
-<li><code>map -&gt; odom</code>を修正し、大域的なロボット位置を合わせる</li>
-</ul>
-<p>したがって、ループ閉じ込み時に<code>map</code>基準のロボット表示が多少動くのは正常である。<code>odom</code>基準でも瞬間移動する場合は、ローカルオドメトリ側を疑う。</p>
+<section id="odom-publishers" class="level3">
+<h3>2.2 誰が、どの周期でTFを出すのか</h3>
+<p>次は車輪＋IMUを融合する構成の例である。周期は説明用で、固定の必須値や、すべての製品の初期値ではない。</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>担当ノード</th>
+<th>出力</th>
+<th>更新・配信の例</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>車輪ドライバ／コントローラ</td>
+<td><code>/wheel/odom</code>：車輪によるOdometry</td>
+<td>エンコーダ計測に基づき50 Hz</td>
+</tr>
+<tr class="even">
+<td>IMUドライバ</td>
+<td><code>/imu/data</code>：角速度・加速度など</td>
+<td>センサー設定により100 Hz</td>
+</tr>
+<tr class="odd">
+<td><code>robot_localization</code>の<code>ekf_node</code></td>
+<td><code>/odometry/filtered</code>と<code>odom -&gt; base_link</code></td>
+<td><code>frequency: 50.0</code>なら出力目標50 Hz</td>
+</tr>
+<tr class="even">
+<td>AMCLまたは3D Localizer</td>
+<td>地図上の姿勢トピックと<code>map -&gt; odom</code></td>
+<td>主にスキャン入力・採用条件によって推定を更新。TF再配信は実装・設定による</td>
+</tr>
+<tr class="odd">
+<td><code>robot_state_publisher</code>など</td>
+<td><code>base_link -&gt; sensor</code></td>
+<td>固定取付なら<code>/tf_static</code>。可動部なら関節状態に応じた動的TF</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart LR
+    W[&quot;車輪ドライバ&lt;br/&gt;車輪Odometry&quot;] --&gt; E[&quot;ekf_node&lt;br/&gt;センサー融合&quot;]
+    I[&quot;IMUドライバ&quot;] --&gt; E
+    E --&gt; O[&quot;odom → base_link&lt;br/&gt;融合Odometry&quot;]
+    P[&quot;LiDAR観測＋保存地図&quot;] --&gt; L[&quot;Localization&quot;]
+    O --&gt;|&quot;同時刻のTF&quot;| L
+    L --&gt; M[&quot;map → odom&lt;br/&gt;地図上の姿勢トピック&quot;]</code></pre>
+<p>この構成では車輪側の<code>odom -&gt; base_link</code>配信を無効にし、EKFだけがその辺を出す。EKFを使わず車輪ドライバが直接出す構成や、LIO・VIO・脚の状態推定器が出す構成でもよい。<strong>同じTFの辺の配信担当は1系統に決める。</strong>
+Nav2が地図補正やオドメトリを自動生成するわけではない。</p>
+<p>「新しい推定を計算した回数」と「保持中の値を再配信した回数」は異なる。例えば、AMCLではスキャンを受信しても移動量・旋回量の条件などで推定更新を省く場合がある。TopicのHzだけで新しい地図照合の成功頻度を判断しない。</p>
 </section>
-<section id="23-odomメッセージとodom---base_link-tfは別物"
-class="level3">
-<h3>2.3 <code>/odom</code>メッセージと<code>odom -&gt; base_link</code>
-TFは別物</h3>
-<p><code>nav_msgs/msg/Odometry</code>には、主に次が入る。</p>
+<section id="odom-time-origin" class="level3">
+<h3>2.3 オドメトリはいつからいつまでの移動なのか</h3>
+<p>オドメトリは、センサーから求めた移動量を積み重ねるなどして、連続した位置・姿勢を推定する。通常は起動・初期化した時刻を<code>t0</code>として、そのときに定めた<code>odom</code>座標で現在の姿勢を表す。初期値をゼロとした直線運動なら、次のようになる。</p>
+<pre class="text"><code>時刻                 t0         t1         t2         t3
+前回からの移動量      ―       +0.02 m    +0.02 m    +0.02 m
+odom上の位置         0 m       0.02 m     0.04 m     0.06 m</code></pre>
+<p><code>t3</code>で配信する<code>odom -&gt; base_link</code>の位置は<code>0.06 m</code>であり、今回の変位<code>0.02 m</code>ではない。往復した場合は原点に戻り得るので、これは累積走行距離でもない。<strong>LiDAR自己位置推定の結果が届くたびに、積算値や原点をゼロに戻すことはしない。</strong></p>
+<p>「局所的」とは、短い区間の相対移動を扱うのに向いているという意味であり、「直近1秒分だけを保持する」という意味ではない。区間の変位が欲しいときは、2時刻の姿勢から求める。直線なら<code>O(t2) - O(t1)</code>、回転を含むなら<code>inverse(O(t1)) × O(t2)</code>である。再起動や明示的なリセットは別の事象で、既存の局所地図との整合性を取り直す必要がある。</p>
+<p>また、<code>odom</code>というフレーム名と、<code>/odom</code>というTopic名は別物である。</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>出力</th>
+<th>含まれる情報</th>
+<th>使い方</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>TF：<code>odom -&gt; base_link</code></td>
+<td>時刻付きの位置・姿勢</td>
+<td>センサー、経路、ロボット姿勢を共通座標へ変換する</td>
+</tr>
+<tr class="even">
+<td><code>nav_msgs/msg/Odometry.pose</code></td>
+<td><code>header.frame_id</code>基準の位置・姿勢と共分散</td>
+<td>フィルタへの入力、記録など</td>
+</tr>
+<tr class="odd">
+<td><code>nav_msgs/msg/Odometry.twist</code></td>
+<td><code>child_frame_id</code>基準の並進・角速度と共分散</td>
+<td>Nav2の現在速度など</td>
+</tr>
+</tbody>
+</table>
+<p>通常は<code>header.frame_id: odom</code>、<code>child_frame_id: base_link</code>を使う。TopicをPublishしただけではTFは自動で生成されない。融合後のTopicが<code>/odometry/filtered</code>なら、Nav2の<code>odom_topic</code>もその出力に合わせる。</p>
+</section>
+<section id="odom-composition" class="level3">
+<h3>2.4 自己位置推定は何を出すのか。「つながるように計算」とは</h3>
+<p>LiDARの地図照合が推定するのは、観測時刻における地図上のロボット位置・姿勢である。平面なら主に<code>x, y, yaw</code>、3Dなら並進3成分と回転3成分を扱う。推定器は、姿勢トピックとしてその結果と共分散を出すとともに、Nav2向けTFとして<code>map -&gt; odom</code>を出す構成にできる。</p>
+<p>同じ時刻の推定が次の値だったとする。</p>
+<pre class="text"><code>LiDAR地図照合：map上のロボット位置 M = 104.00 m
+オドメトリ：  odom上のロボット位置 O =   5.00 m
+
+M = C + O を満たす補正Cを求める
+C = 104.00 - 5.00 = 99.00 m
+
+map ── +99.00 m ──→ odom ── +5.00 m ──→ base_link
+              合成すると map上で104.00 m</code></pre>
+<p><code>C</code>は、<code>map</code>から見た<code>odom</code>原点の位置である。初期の原点・向きの違いも含むので、すべてが蓄積誤差というわけではない。<strong>「つながる」とは、TFを合成したロボット姿勢を、同時刻の地図照合結果と一致させること。ジャンプを打ち消して滑らかにつなぐという意味ではない。</strong></p>
+<p>回転を含む一般の計算は、次の座標変換行列で表せる。<code>T_A_B</code>は「Aから見たBの姿勢」、つまりBで表した点をAへ変換する行列とする。</p>
+<pre class="text"><code>O(ts) = T_odom_base(ts)             # 計測時刻tsのオドメトリ
+M(ts) = T_map_base_localization(ts) # 計測時刻tsの地図照合結果
+C     = M(ts) × inverse(O(ts))      # map → odomとして配信
+
+T_map_base(ts) = C × O(ts) = M(ts)</code></pre>
+<p>ロボット姿勢を<code>map -&gt; base_link</code>として直接出すモードもあるが、標準的なNav2接続では上記の分担を使う。同じ<code>base_link</code>に<code>map</code>と<code>odom</code>の2つの親を与えない。</p>
+</section>
+<section id="odom-timeline" class="level3">
+<h3>2.5 計測からPublish、Nav2制御までの時系列</h3>
+<p><strong>計測時刻とPublish時刻を分けて考える。</strong>
+点群のタイムスタンプが10.00秒で、地図照合が10.06秒に終わっても、その結果は原則として10.00秒の姿勢である。実際の点群は走査時間を持つため、ドライバのタイムスタンプ規約とDeskewの基準時刻もそろえる。</p>
+<p>次の数値例では、オドメトリ50 Hz、LiDAR10 Hz、地図照合60
+ms、Nav2制御20 Hzを仮定する。ロボットは毎秒1
+mで直進し、各ループは独立して動く。</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>実際の時刻</th>
+<th>オドメトリの処理</th>
+<th>LiDAR自己位置推定の処理</th>
+<th>Nav2の処理例</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>10.00秒</td>
+<td><code>O(10.00)=5.00 m</code>を配信</td>
+<td>10.00秒の点群を受け取り照合開始</td>
+<td>その時点で利用可能なTF・速度・経路で制御</td>
+</tr>
+<tr class="even">
+<td>10.02秒</td>
+<td><code>O(10.02)=5.02 m</code>を配信</td>
+<td>計算中</td>
+<td>次の制御周期待ち</td>
+</tr>
+<tr class="odd">
+<td>10.04秒</td>
+<td><code>O(10.04)=5.04 m</code>を配信</td>
+<td>計算中</td>
+<td>次の制御周期待ち</td>
+</tr>
+<tr class="even">
+<td>10.05秒</td>
+<td>独立して更新を継続</td>
+<td>計算中</td>
+<td>以前の補正と利用可能なオドメトリで制御</td>
+</tr>
+<tr class="odd">
+<td>10.06秒</td>
+<td><code>O(10.06)=5.06 m</code>を配信</td>
+<td><code>M(10.00)=104.00 m</code>と判明。同時刻の<code>O(10.00)</code>で補正を計算し出力</td>
+<td>次の制御周期で更新されたTFを利用</td>
+</tr>
+<tr class="even">
+<td>10.08秒</td>
+<td><code>O(10.08)=5.08 m</code>を配信</td>
+<td>次の点群待ち</td>
+<td>次の制御周期待ち</td>
+</tr>
+<tr class="odd">
+<td>10.10秒</td>
+<td><code>O(10.10)=5.10 m</code>を配信</td>
+<td>次の点群を受け取り照合開始</td>
+<td>TFが利用可能な時刻で姿勢を取得し制御</td>
+</tr>
+</tbody>
+</table>
+<p>10.06秒に計算が終わったとき、自己位置推定ノードはTFの履歴から10.00秒のオドメトリを取得する。必要な時刻を挟むTFサンプルがあれば補間できる。計算は<code>104.00 - 5.00 = 99.00 m</code>であり、最新の5.06
+mを引いてはいけない。時刻を混ぜると、計算中に動いた0.06
+mを誤って補正へ入れてしまう。</p>
+<p>得られた補正を保持し、その後のオドメトリを組み合わせると、理論上の10.06秒の推定位置は次になる。</p>
+<pre class="text"><code>map位置(10.06) = 補正C + O(10.06)
+               = 99.00 + 5.06 = 104.06 m
+
+同じ計算を移動区間で表すと：
+現在の推定位置 = LiDARで求めた過去の位置
+               + その計測時刻から現在までのオドメトリ変位
+               = 104.00 + (5.06 - 5.00)</code></pre>
+<p><strong>オドメトリ自体は初期化時からの累積姿勢だが、LiDAR結果を現在へ進めるために使う変位の区間は、LiDAR計測時刻から現在まで</strong>である。回転を含む式では<code>M(ts) × inverse(O(ts)) × O(t)</code>となる。</p>
+<p>ただし、数式が成立することと、その時刻のTFが取得できることは別である。TFは動的な辺を無期限に未来へ外挿しない。補正の再配信や有効時刻の扱いは推定ノードに依存し、取得側は履歴のある時刻、最新の共通時刻、許容遅延に従う。履歴不足・古いTF・時計ずれは、待機やTFエラーの原因になる。許容遅延を増やしても、欠けた実測値が生成されるわけではない。</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant O as Odometryノード
+    participant L as LiDAR自己位置推定
+    participant T as 各利用ノードのTF Buffer
+    participant N as Nav2
+    O-&gt;&gt;T: odom → base_linkを継続配信
+    Note over L: 計測時刻tsの点群を地図照合
+    O-&gt;&gt;N: Odometryの現在速度を継続配信
+    L-&gt;&gt;T: tsのodom → base_linkを取得
+    T--&gt;&gt;L: O(ts)
+    Note over L: C = M(ts) × inverse(O(ts))
+    L-&gt;&gt;T: map → odomを配信
+    Note over O,L: 各ノードは独立した周期・コールバックで動く
+    N-&gt;&gt;T: 必要な座標系・時刻の姿勢や経路変換を取得
+    T--&gt;&gt;N: 利用可能なTFを合成した結果
+    Note over N: 経路・障害物・現在速度からcmd_velを計算</code></pre>
+<p>TF
+Bufferは中央サーバーではなく、各リスナーが受信した変換を保持する履歴である。メッセージの送信、受信、制御周期は同時ではなく、Nav2はLiDAR結果のPublishを毎回待ってから1回動く構成ではない。</p>
+</section>
+<section id="odom-jump" class="level3">
+<h3>2.6 map上の位置はジャンプしたままでよいのか</h3>
+<p>次の地図照合で位置が修正された場合も、<code>odom</code>を書き戻さず補正を変える。</p>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 26%" />
+<col style="width: 26%" />
+<col style="width: 26%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>同じ10.10秒の姿勢を評価する状態</th>
+<th style="text-align: right;"><code>map -&gt; odom</code>の補正C</th>
+<th
+style="text-align: right;"><code>odom -&gt; base_link</code>の位置O</th>
+<th style="text-align: right;">合成したmap上の位置</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>前回の補正で予測</td>
+<td style="text-align: right;">99.00 m</td>
+<td style="text-align: right;">5.10 m</td>
+<td style="text-align: right;">104.10 m</td>
+</tr>
+<tr class="even">
+<td>新しい地図照合が104.12 mと推定</td>
+<td style="text-align: right;">99.02 m</td>
+<td style="text-align: right;">5.10 m</td>
+<td style="text-align: right;">104.12 m</td>
+</tr>
+</tbody>
+</table>
+<p><code>map</code>上の位置は0.02
+m変わる。大域再位置推定では、もっと大きく変わることもある。一方、<code>odom</code>上の位置は同じ5.10
+mである。<strong>2つの変換を掛けるとジャンプが相殺されるわけではない。地図上での訂正と、連続した移動履歴を別々に利用できることが目的である。</strong></p>
+</section>
+<section id="odom-nav2-consumers" class="level3">
+<h3>2.7 最終的にNav2はどの値を使うのか</h3>
+<p>典型的にGlobal Costmapを<code>map</code>、Local
+Costmapを<code>odom</code>に設定した場合、主な利用先は次のとおりである。フレームやController内部の処理はプラグイン・設定によって変わる。</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>利用先</th>
+<th>参照する情報</th>
+<th>必要な理由</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Planner / Global Costmap</td>
+<td>TFを合成した<code>map -&gt; base_link</code>、地図、map上の目的地</td>
+<td>見えていない遠方も含め、地図上で経路を作る</td>
+</tr>
+<tr class="even">
+<td>Local Costmap</td>
+<td>観測時刻の<code>odom -&gt; base_link -&gt; sensor</code></td>
+<td>過去と現在の近傍観測を同じ基準へ登録する</td>
+</tr>
+<tr class="odd">
+<td>Controller</td>
+<td>局所地図基準のロボット姿勢、経路、障害物</td>
+<td>直近の経路追従と回避を計算する</td>
+</tr>
+<tr class="even">
+<td>経路・ゴールの座標変換</td>
+<td><code>map -&gt; odom</code>などのTF</td>
+<td>地図上の計画を局所制御の座標系へそろえる</td>
+</tr>
+<tr class="odd">
+<td>Controllerの現在速度</td>
+<td><code>odom_topic</code>で指定したOdometryの<code>twist</code></td>
+<td>現在の運動状態を踏まえて次の速度指令を決める</td>
+</tr>
+</tbody>
+</table>
+<p>標準的なNav2接続では、Localizerの<code>/pcl_pose</code>などをそのまま現在位置として購読するのではなく、姿勢は主にTFから取得する。速度はOdometry
+Topicから取得し、<code>/cmd_vel</code>はNav2が計算した指令である。<strong>推定姿勢のPublish、TFの配信、Nav2の制御は別経路・別ループ</strong>なので、姿勢Topicが見えてもTFが欠けていればナビゲーションは成立しない。</p>
+</section>
+<section id="odom-local-map" class="level3">
+<h3>2.8 なぜわざわざodomを挟むのか：壁と目的地の例</h3>
+<p>ロボットが静止し、前方2
+mに壁があるとする。次の例では<code>odom</code>上のロボット位置が5
+m、壁が7 mで、最初の地図補正は100 mとする。</p>
+<pre class="text"><code>odom基準：ロボット x=5   ── 2 m ── 壁 x=7
+map基準： ロボット x=105 ── 2 m ── 壁 x=107</code></pre>
+<p>地図照合で「ロボットはmap上で104
+m」と訂正されても、実際のロボットと壁は動いていない。<code>map -&gt; odom</code>は100
+mから99 mになる。</p>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 28%" />
+<col style="width: 28%" />
+<col style="width: 21%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>観測を保持する基準</th>
+<th style="text-align: right;">補正前に記録した壁</th>
+<th style="text-align: right;">補正後の新しい壁の観測</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>map</code>で過去の観測をそのまま保持</td>
+<td style="text-align: right;">107 m</td>
+<td style="text-align: right;">106 m</td>
+<td>同じ壁の過去と現在がずれる。消去や再配置が必要</td>
+</tr>
+<tr class="even">
+<td><code>odom</code>で保持</td>
+<td style="text-align: right;">7 m</td>
+<td style="text-align: right;">7 m</td>
+<td>地図補正だけでは、近傍観測の整合性が崩れない</td>
+</tr>
+</tbody>
+</table>
+<p>単発の観測を自分相対で見るだけならセンサーフレームや<code>base_link</code>でも表せる。しかし、ロボットが動きながら複数回の観測を積み重ねるには、各時刻の移動を考慮した共通基準が必要になる。そこで<code>odom</code>を使う。静的地図レイヤーやmap由来の情報は補正の影響を受け得るが、<strong>odomで保持した局所観測を、地図上の訂正だけで壊さずに済む</strong>。</p>
+<p>遠方の目的地・経路は<code>map</code>基準なので、補正を無視するわけではない。地図上の経路点が110
+mなら、局所制御には次のように変換して渡る。</p>
+<table>
+<colgroup>
+<col style="width: 13%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>状態</th>
+<th style="text-align: right;">map上の経路点</th>
+<th style="text-align: right;">補正C</th>
+<th style="text-align: right;">odomへ変換した経路点</th>
+<th style="text-align: right;">odom上のロボット</th>
+<th style="text-align: right;">経路点までの距離</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>補正前</td>
+<td style="text-align: right;">110 m</td>
+<td style="text-align: right;">100 m</td>
+<td style="text-align: right;">10 m</td>
+<td style="text-align: right;">5 m</td>
+<td style="text-align: right;">5 m</td>
+</tr>
+<tr class="even">
+<td>補正後</td>
+<td style="text-align: right;">110 m</td>
+<td style="text-align: right;">99 m</td>
+<td style="text-align: right;">11 m</td>
+<td style="text-align: right;">5 m</td>
+<td style="text-align: right;">6 m</td>
+</tr>
+</tbody>
+</table>
+<p>自分と壁の関係は保ち、「目的地は思っていたより1
+m遠かった」という訂正を計画へ反映できる。Local
+Costmapは近傍の観測を更新しながら使い、オドメトリが大きくドリフトするほど長く古い観測を保持しない。</p>
+<p><code>map -&gt; base_link</code>だけで自律移動するシステムも設計できる。ただし、連続した局所観測の管理と大域訂正を自分で扱う必要がある。標準Nav2では、この分離を<code>map -&gt; odom -&gt; base_link</code>で表す。</p>
+</section>
+<section id="odom-velocity" class="level3">
+<h3>2.9 速度がオドメトリ由来なら、極端な動きを防げるのか</h3>
+<p>静止中、地図上の位置だけが0.1秒の間に1
+m訂正された場合、map位置の差分から速度を作ると「10
+m/sで移動した」と誤認し得る。オドメトリの現在速度を利用すれば、この地図訂正を実際の加減速と取り違えにくい。TF自体には速度値は入っていない。</p>
+<p>ただし、<strong>現在速度と、次に出す速度指令は別物</strong>である。経路をodomへ変換した位置も補正で変わるので、Controllerが急に旋回しようとする可能性は残る。odomを使うだけで指令の滑らかさが保証されるわけではなく、Controllerの速度・加減速制限やVelocity
+Smootherなどを合わせて設定する。地図補正を見えなくすることが目的ではない。</p>
+</section>
+<section id="odom-slip" class="level3">
+<h3>2.10 車輪が回らず機体が滑ったらどうなるのか</h3>
+<p>「動かしていない」は「物理的に移動していない」とは限らない。車輪が回らないまま、機体が前方の壁へ0.5
+m滑ったとする。</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>情報</th>
+<th>滑る前</th>
+<th>滑った後</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>実際の壁までの距離</td>
+<td>2 m</td>
+<td>1.5 m</td>
+</tr>
+<tr class="even">
+<td>車輪だけのodom位置</td>
+<td>5 m</td>
+<td>5 m：滑りを見逃す</td>
+</tr>
+<tr class="odd">
+<td>LiDAR観測からodomへ登録した壁</td>
+<td>7 m</td>
+<td>6.5 m：過去の観測とずれる</td>
+</tr>
+<tr class="even">
+<td>LiDARの地図照合</td>
+<td>地図上の位置を推定</td>
+<td>照合に成功すれば、実際の機体移動を検出する</td>
+</tr>
+</tbody>
+</table>
+<p>地図照合に成功すれば<code>map -&gt; odom</code>を変え、地図上の位置を修正できる。しかし、<strong>それだけでodomが見逃した移動や、odomで保持した過去の壁の位置が直るわけではない。</strong>
+新しい障害物観測、空き領域のレイトレース、レイヤーに応じた減衰・クリアで局所地図を更新する。見え方や設定次第で古い障害物が残ることがあり、補正すれば必ず即座に回復するとは限らない。</p>
+<p>滑りを局所移動として追跡するには、車輪以外から機体の移動を測る。</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>計測源</th>
+<th>補えること・限界</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>車輪・脚の運動学</td>
+<td>車輪の滑り、足の接地ずれなどで移動と計算が一致しなくなる</td>
+</tr>
+<tr class="even">
+<td>IMU</td>
+<td>加速度・回転の変化を捉えるが、等速移動を加速度だけから判別できない。バイアスがあり、単独の位置積分はドリフトする</td>
+</tr>
+<tr class="odd">
+<td>LiDAR Odometry / LIO</td>
+<td>周囲の形状変化で機体移動を推定する。特徴の乏しい廊下、遮蔽などでは不確かになる</td>
+</tr>
+<tr class="even">
+<td>Visual Odometry / VIO</td>
+<td>画像変化で機体移動を推定する。暗所、模様不足、ブレなどでは不確かになる</td>
+</tr>
+</tbody>
+</table>
+<p>車輪・脚とIMU、LIO、VIOなどを適切に選択・融合して<code>odom -&gt; base_link</code>へ反映する。EKFを置くだけで、どのセンサーにも観測できない滑りが分かるわけではない。車輪位置とその微分速度など相関の強い情報を、独立な観測として重複投入しない。<strong>連続性は正確さの保証ではなく、odomというフレームを設けること自体は滑り対策ではない。</strong></p>
+</section>
+<section id="odom-lidar-localization" class="level3">
+<h3>2.11 lidar_localization_ros2での対応と確認方法</h3>
+<p>ここでは<a
+href="https://github.com/rsasaki0109/lidar_localization_ros2">rsasaki0109/lidar_localization_ros2</a>を例にする。既存の点群地図へ現在の点群を照合するLocalizationであり、地図を新たに作るSLAMとは区別する。2026-10-13に参照した公開実装の構成を示すが、利用中のコミットとLaunchの上書き設定を確認すること。</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>設定・出力</th>
+<th>意味</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>enable_map_odom_tf: false</code></td>
+<td>Localizerが<code>map -&gt; base_link</code>を直接出すモード</td>
+</tr>
+<tr class="even">
+<td><code>enable_map_odom_tf: true</code></td>
+<td>Localizerが<code>map -&gt; odom</code>を出す。別ノードの<code>odom -&gt; base_link</code>が必要</td>
+</tr>
+<tr class="odd">
+<td><code>use_odom: true</code></td>
+<td>Odometry入力を予測に使う設定。外部のodom
+TFを自動生成する設定ではない</td>
+</tr>
+<tr class="even">
+<td><code>/pcl_pose</code>（既定名）</td>
+<td>地図上の推定姿勢と共分散。Launchで別Topicへリマップされる場合がある</td>
+</tr>
+</tbody>
+</table>
+<p>通常の姿勢出力経路では、<code>publishCurrentPose()</code>が姿勢Topicを配信し、<code>publishMapToOdomTransform()</code>が同じ<code>stamp</code>の<code>odom -&gt; base_link</code>を取得して補正TFを配信する。TF取得に失敗すると、姿勢Topicが出ても対応する補正TFは出ない。タイマーや予測・再配信の機能もあるため、姿勢TopicのHzは必ずしも新しい地図照合のHzではない。</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 使用中のノード名・入出力を先に確認する</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> node list</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic list <span class="at">-t</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 融合Odometryを使う場合は /odom を実際のTopic名へ変更する</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic info /odom <span class="at">--verbose</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic hz /odom</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic echo /odom <span class="at">--once</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 各変換が存在し、期待する動きをするか確認する</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> run tf2_ros tf2_echo odom base_link</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> run tf2_ros tf2_echo map odom</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> run tf2_ros tf2_echo map base_link</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Nav2が参照する速度Topicと制御周期</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> param get /controller_server odom_topic</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> param get /controller_server controller_frequency</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Localizerの既定Topic名。リマップしている場合は置き換える</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic hz /pcl_pose</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic echo /alignment_status <span class="at">--once</span></span></code></pre></div>
+<p>各監視コマンドは別端末で実行するか、終了してから次へ進む。<code>tf2_echo</code>の表示周期や<code>ros2 topic hz /tf</code>だけでは、個別のTFの配信周期は分からない。必要なら<code>/tf</code>を記録して親子フレームごとのタイムスタンプを確認し、<code>ros2 node info</code>や各ノードの設定で所有者を照合する。実機未接続のこの教材では、上の周期例を実測値として扱わない。</p>
+</section>
+<section id="odom-review" class="level3">
+<h3>2.12 理解を確認する問いと参考資料</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>問い</th>
+<th>答え</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>odomはロボットに固定された座標か</td>
+<td>いいえ。それは<code>base_link</code>。odomは連続運動を記録する基準</td>
+</tr>
+<tr class="even">
+<td>自己位置推定のたびにodomをリセットするか</td>
+<td>しない。地図とのずれは<code>map -&gt; odom</code>で扱う</td>
+</tr>
+<tr class="odd">
+<td>odomを挟めばmap上のジャンプも消えるか</td>
+<td>消えない。連続した局所移動と地図上の訂正を分けて利用できる</td>
+</tr>
+<tr class="even">
+<td>60 ms前のLiDAR位置から補正を作る際、どのodomを使うか</td>
+<td>LiDARと同じ計測時刻のodom。最新値と混ぜない</td>
+</tr>
+<tr class="odd">
+<td>odomは速度のためだけに必要か</td>
+<td>いいえ。局所観測の蓄積、移動量、経路の座標変換にも使う</td>
+</tr>
+<tr class="even">
+<td>odomが滑らかなら滑りを正しく測れているか</td>
+<td>限らない。実際の機体移動を観測できるセンサーが必要</td>
+</tr>
+</tbody>
+</table>
+<p>本章の導入は、赤井直紀氏の<a
+href="https://qiita.com/NaokiAkai/items/08deb338956c8da83aa9">オドメトリフレーム（/odom）とは何か</a>を参考に、局所観測を連続して保持する理由から整理した。周期と距離の数値例は本教材の説明用である。</p>
 <ul>
-<li><code>header.frame_id</code>：姿勢を表現する基準フレーム。通常は<code>odom</code></li>
-<li><code>child_frame_id</code>：移動体フレーム。通常は<code>base_link</code></li>
-<li><code>pose</code>：位置・姿勢</li>
-<li><code>twist</code>：並進・角速度</li>
-<li>covariance：推定の不確かさ</li>
+<li><a
+href="https://www.ros.org/reps/rep-0105.html">REP-105：フレームの意味と配信責任</a></li>
+<li><a
+href="https://docs.nav2.org/setup_guides/transformation/setup_transforms.html">Nav2：Transform設定</a></li>
+<li><a
+href="https://docs.nav2.org/setup_guides/odom/setup_odom.html">Nav2：Odometry設定</a></li>
+<li><a
+href="https://docs.ros.org/en/melodic/api/robot_localization/html/configuring_robot_localization.html">robot_localization：センサー融合の設定</a></li>
+<li><a
+href="https://github.com/rsasaki0109/lidar_localization_ros2/blob/main/docs/frame_contract.md">lidar_localization_ros2：TFモード</a></li>
+<li><a
+href="https://github.com/rsasaki0109/lidar_localization_ros2/blob/main/src/component_pose_publisher.cpp">lidar_localization_ros2：姿勢・TF配信の実装</a></li>
+<li><a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_controller/src/controller_server.cpp">Nav2
+Humble：Controller Serverの実装</a></li>
 </ul>
-<p>一方、TFは座標変換を検索するための別経路で配信される。Nav2やSLAMによっては両方を利用する。</p>
-<p>同じ<code>odom -&gt; base_link</code>を複数ノードがPublishしてはいけない。例えば、次の3つを同時に有効にすると競合しやすい。</p>
-<ul>
-<li>ロボット本体ドライバ</li>
-<li>Visual Odometryノード</li>
-<li><code>robot_localization</code></li>
-</ul>
-<p>どのノードを最終的なTF所有者にするかを先に決める。</p>
+<p>MID-360での接続手順は、<a
+href="../slam-localization-api/lidar_localization_ros2/11_navigation.html">11.
+Nav2ナビゲーション</a>も参照する。単一ファイル版だけをコピーした場合、この別教材へのリンクにはリポジトリ一式が必要になる。</p>
 <hr />
 </section>
 </section>
@@ -2291,7 +2879,7 @@ OccupancyGridは別形式であり、自動的に互換ではない</li>
             <p class="step-label">KNOWLEDGE CHECK</p>
             <h2>最後に接続の要点を確認する</h2>
           </div>
-          <span class="time-chip">全3問</span>
+          <span class="time-chip">全6問</span>
         </div>
 
         <div class="quiz" data-answer="b" data-explanation="IMU単独の加速度積分では誤差が急速に蓄積します。LiDAR＋IMUのLIOやCamera＋IMUのVIOとして使うのが基本です。">
@@ -2303,7 +2891,7 @@ OccupancyGridは別形式であり、自動的に互換ではない</li>
           <p class="quiz-result" aria-live="polite"></p>
         </div>
 
-        <div class="quiz" data-answer="a" data-explanation="SLAM中はSLAM、保存地図ではAMCLや3D Localizerなどが大域補正を担当します。同じTFを複数ノードが同時にPublishしてはいけません。">
+        <div class="quiz" data-answer="a" data-explanation="SLAM中はSLAM、保存地図ではAMCLや3D Localizerなどが大域補正を担当します。odom上の連続性を保っても、map上の自己位置は補正でジャンプし得ます。同じTFの配信担当は1系統にします。">
           <p class="quiz-number">QUESTION 2</p>
           <h3><code>map → odom</code>を主にPublishするのはどの役割？</h3>
           <label><input type="radio" name="quiz-2" value="a"> SLAMまたはLocalization</label>
@@ -2320,11 +2908,37 @@ OccupancyGridは別形式であり、自動的に互換ではない</li>
           <button class="quiz-check" type="button">回答を確認</button>
           <p class="quiz-result" aria-live="polite"></p>
         </div>
+        <div class="quiz" data-answer="b" data-explanation="補正は同じ計測時刻の地図姿勢とオドメトリから計算します。その後の移動は、計測時刻から現在までのオドメトリ変位で反映します。">
+          <p class="quiz-number">QUESTION 4</p>
+          <h3>10.00秒のLiDAR観測の計算が10.06秒に完了した。補正を求めるために組み合わせるodomは？</h3>
+          <label><input type="radio" name="quiz-4" value="a"> Publish時刻に近い10.06秒のodom</label>
+          <label><input type="radio" name="quiz-4" value="b"> LiDARと同じ計測時刻である10.00秒のodom</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
+
+        <div class="quiz" data-answer="a" data-explanation="地図補正が起きても、odom上で保持した局所観測とロボットの連続移動を扱えます。map上の経路はTFで局所制御の座標へ変換するため、補正が速度指令へ影響する可能性は残ります。">
+          <p class="quiz-number">QUESTION 5</p>
+          <h3>局所コストマップをodom基準にする主な理由は？</h3>
+          <label><input type="radio" name="quiz-5" value="a"> 地図上の位置訂正だけで、過去と現在の近傍観測がずれるのを防ぐため</label>
+          <label><input type="radio" name="quiz-5" value="b"> 地図上の位置訂正を消し、速度指令が絶対に急変しないようにするため</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
+
+        <div class="quiz" data-answer="b" data-explanation="車輪が見逃した滑りは、地図補正だけではodom側の移動履歴に復元されません。局所地図の更新と、LIOやVIOなど機体移動を観測できる計測源を検討します。連続性は正確さの保証ではありません。">
+          <p class="quiz-number">QUESTION 6</p>
+          <h3>車輪が回らず機体が滑った。LiDAR地図照合でmap上の位置を直せば、odom上の過去の障害物も必ず直る？</h3>
+          <label><input type="radio" name="quiz-6" value="a"> はい。map → odomの補正が過去の局所観測も自動で修正する</label>
+          <label><input type="radio" name="quiz-6" value="b"> いいえ。odomが見逃した移動と、局所観測の整合性は別に扱う</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
       </section>
 
       <footer class="course-footer">
         <p>ROS 2 SLAM・Localization・Navigation2 学習教材</p>
-        <p>対象：Ubuntu 22.04 / ROS 2 Humble · 情報確認日：2026-09-17</p>
+        <p>対象：Ubuntu 22.04 / ROS 2 Humble · 情報確認日：2026-09-17 · オドメトリ・TF章更新：2026-10-13</p>
       </footer>
     </main>
   </div>

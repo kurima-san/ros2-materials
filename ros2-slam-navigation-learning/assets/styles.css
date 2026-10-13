@@ -865,6 +865,13 @@ table {
   font-size: 0.9rem;
 }
 
+/* Keep the odometry comparison and timing tables readable on small screens. */
+@media screen and (max-width: 720px) {
+  .odometry-chapter table {
+    min-width: 680px;
+  }
+}
+
 th,
 td {
   padding: 11px 13px;

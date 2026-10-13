@@ -13,7 +13,12 @@
 <a href="fix/ndt_omp_target_link_fix.patch">最小CMakeパッチ</a>
 </nav><main class="main"><div class="breadcrumb"><a href="index.html">トップ</a> / 11. Nav2ナビゲーション</div>
 
-<section class="page"><h2>10. 将来のNav2ナビゲーション構成</h2>
+<section class="page"><h2>11. Nav2ナビゲーション構成</h2>
+
+<div class="note"><strong>オドメトリの必要性から理解する:</strong>
+<a href="../../ros2-slam-navigation-learning/index.html#odometry-guide">学習教材 第2章</a>で、
+TFの配信担当 → 積算する期間 → 計測とPublishの時系列 → Nav2の利用先 → 滑りの限界、の順に説明する。
+以下の概要を確認してから、実機のインタフェースと起動手順へ進む。</div>
 
 <div class="note"><strong>手持ちLocalizationから変わる最大の点:</strong>
 ロボット運用ではMID-360そのものを <code>base_frame</code> にせず、
@@ -40,6 +45,72 @@
 <div class="flow">
 <span>Nav2</span><b>→</b><span>/cmd_vel</span><b>→</b><span>ロボット歩行・移動制御</span>
 </div>
+</section>
+
+<section class="page" id="odometry-flow"><h2>11.0 なぜodomを挟むのか、処理を追って理解する</h2>
+<p><strong>odomを挟んでもmap上の自己位置はジャンプし得る。</strong>
+地図上の位置を訂正する <code>map → odom</code> と、連続した移動を表す
+<code>odom → base_link</code> を分け、局所観測と遠方の経路を両立させる。
+<code>odom</code> はロボットに固定された座標ではない。自分相対の基準は <code>base_link</code> である。</p>
+
+<h3>担当と周期を分ける</h3>
+<table>
+<tr><th>担当</th><th>配信する情報</th><th>周期の考え方</th></tr>
+<tr><td>車輪・脚Odom、EKF、LIO、VIOのいずれか</td><td><code>odom → base_link</code> とOdometry</td><td>例: 50 Hz。センサーと状態推定器の設定で決まる</td></tr>
+<tr><td>lidar_localization_ros2</td><td>地図上の姿勢Topic、Nav2モードでは <code>map → odom</code></td><td>地図照合は点群入力と採用条件に依存。予測や再配信の頻度とは区別する</td></tr>
+<tr><td>Nav2 Controller</td><td>速度指令 <code>/cmd_vel</code></td><td>例: 20 Hz。<code>controller_frequency</code> などの設定で決まる</td></tr>
+</table>
+<p>周期は説明用で、必須値ではない。EKFがTFを出す場合は、車輪側の同じTF配信を止める。
+Odometry Topicを出すだけではTFは自動生成されない。</p>
+
+<h3>「いつからの移動か」と、計測・Publishの時間差</h3>
+<p><code>odom → base_link</code> は通常、起動・初期化時に定めた原点に対する累積位置・姿勢であり、
+前回のLiDAR照合からの変位だけではない。LiDARの推定が届くたびにリセットしない。
+前回からの移動量が必要なら、2時刻のオドメトリ姿勢から求める。</p>
+<p>回転のない直線運動で、10.00秒の点群を処理し、10.06秒に結果が得られた例を考える。</p>
+<pre><code>10.00秒: odom位置は5.00 m。LiDARの地図照合を開始
+10.02秒: odom位置は5.02 m。地図照合は計算中
+10.04秒: odom位置は5.04 m。地図照合は計算中
+10.06秒: odom位置は5.06 m。
+         「10.00秒のmap位置は104.00 m」と判明
+
+同じ計測時刻で補正を計算:
+map → odom = 104.00 - 5.00 = 99.00 m
+
+補正を保持して、その後の移動を反映:
+map位置(10.06) = 99.00 + 5.06 = 104.06 m
+              = 104.00 + (5.06 - 5.00)
+</code></pre>
+<p>「つながるように計算」とは、同時刻のTFを合成した姿勢を地図照合結果へ一致させること。
+Publish時刻の最新odomを引くと、計算中の移動まで誤って補正に入る。
+回転を含む式は <code>C = M(ts) × inverse(O(ts))</code>、その後の姿勢は <code>C × O(t)</code> となる。</p>
+<p>実際に10.06秒のTFを参照するには、必要な辺がその時刻まで利用できなければならない。
+TFは古い動的変換を無期限に未来へ延長しない。再配信・有効時刻はノードの実装に従い、
+Nav2は利用可能なTFと許容遅延に従う。オドメトリ、地図照合、Nav2制御は独立したループである。</p>
+
+<h3>Nav2のどこで使われるか</h3>
+<table>
+<tr><th>用途</th><th>典型的な参照先</th><th>効果</th></tr>
+<tr><td>大域経路計画</td><td><code>map → base_link</code>、地図、目的地</td><td>見えない遠方の目的地へ向かう経路を作る</td></tr>
+<tr><td>局所障害物の保持</td><td>観測時刻の <code>odom → base_link → sensor</code></td><td>地図補正だけで過去と現在の局所観測がずれるのを防ぐ</td></tr>
+<tr><td>経路追従</td><td>局所基準の姿勢・障害物と、TFで変換したmap上の経路</td><td>近傍の回避と地図上の訂正を組み合わせる</td></tr>
+<tr><td>現在速度</td><td><code>odom_topic</code> に指定したOdometryの <code>twist</code></td><td>地図上のジャンプを実際の急加速と取り違えにくい</td></tr>
+</table>
+<p>例えば静止中にmap上の位置が105 mから104 mへ訂正されても、odom上の自分が5 m、前方2 mの壁が7 mという関係は保てる。
+map上の経路点は新しい補正でodomへ変換するため、経路に対する距離は訂正される。
+現在速度が連続でも指令の急変は起こり得るので、Controllerの加減速制限やVelocity Smootherも設定する。</p>
+
+<h3>滑りはodomを設けるだけでは直らない</h3>
+<p>車輪が回らず機体だけが壁へ0.5 m滑ると、車輪odomは「移動なし」と判断し、
+壁までの距離だけが2 mから1.5 mへ変わる。LiDAR地図照合でmap上の位置を直せても、
+odomで保持した過去の障害物や、見逃した移動履歴が自動で直るわけではない。</p>
+<p>局所地図を観測・クリア・減衰などで更新するとともに、滑りを観測できるLIO・VIO・IMUなどを適切に選択・融合する。
+IMU単独の長時間の位置積分や、どのセンサーにも見えていない移動をEKFで復元することは期待しない。
+<strong>連続性と正確さは別である。</strong></p>
+
+<p>実装の読み方、確認コマンド、理解度確認は
+<a href="../../ros2-slam-navigation-learning/index.html#odom-lidar-localization">学習教材 2.11</a>を参照。
+導入の参考: 赤井直紀氏の<a href="https://qiita.com/NaokiAkai/items/08deb338956c8da83aa9">オドメトリフレーム（/odom）とは何か</a>。</p>
 </section>
 
 <section class="page"><h2>11.1 Nav2で必要になるインタフェース</h2>

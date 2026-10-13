@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- BUILD: ros2-slam-navigation-learning-v1.2.1-20260917 -->
+<!-- BUILD: ros2-slam-navigation-learning-v1.3.0-20261013 -->
 <html lang="ja">
 <head>
   <meta charset="utf-8">
@@ -184,7 +184,7 @@ $body$
             <p class="step-label">KNOWLEDGE CHECK</p>
             <h2>最後に接続の要点を確認する</h2>
           </div>
-          <span class="time-chip">全3問</span>
+          <span class="time-chip">全6問</span>
         </div>
 
         <div class="quiz" data-answer="b" data-explanation="IMU単独の加速度積分では誤差が急速に蓄積します。LiDAR＋IMUのLIOやCamera＋IMUのVIOとして使うのが基本です。">
@@ -196,7 +196,7 @@ $body$
           <p class="quiz-result" aria-live="polite"></p>
         </div>
 
-        <div class="quiz" data-answer="a" data-explanation="SLAM中はSLAM、保存地図ではAMCLや3D Localizerなどが大域補正を担当します。同じTFを複数ノードが同時にPublishしてはいけません。">
+        <div class="quiz" data-answer="a" data-explanation="SLAM中はSLAM、保存地図ではAMCLや3D Localizerなどが大域補正を担当します。odom上の連続性を保っても、map上の自己位置は補正でジャンプし得ます。同じTFの配信担当は1系統にします。">
           <p class="quiz-number">QUESTION 2</p>
           <h3><code>map → odom</code>を主にPublishするのはどの役割？</h3>
           <label><input type="radio" name="quiz-2" value="a"> SLAMまたはLocalization</label>
@@ -213,11 +213,37 @@ $body$
           <button class="quiz-check" type="button">回答を確認</button>
           <p class="quiz-result" aria-live="polite"></p>
         </div>
+        <div class="quiz" data-answer="b" data-explanation="補正は同じ計測時刻の地図姿勢とオドメトリから計算します。その後の移動は、計測時刻から現在までのオドメトリ変位で反映します。">
+          <p class="quiz-number">QUESTION 4</p>
+          <h3>10.00秒のLiDAR観測の計算が10.06秒に完了した。補正を求めるために組み合わせるodomは？</h3>
+          <label><input type="radio" name="quiz-4" value="a"> Publish時刻に近い10.06秒のodom</label>
+          <label><input type="radio" name="quiz-4" value="b"> LiDARと同じ計測時刻である10.00秒のodom</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
+
+        <div class="quiz" data-answer="a" data-explanation="地図補正が起きても、odom上で保持した局所観測とロボットの連続移動を扱えます。map上の経路はTFで局所制御の座標へ変換するため、補正が速度指令へ影響する可能性は残ります。">
+          <p class="quiz-number">QUESTION 5</p>
+          <h3>局所コストマップをodom基準にする主な理由は？</h3>
+          <label><input type="radio" name="quiz-5" value="a"> 地図上の位置訂正だけで、過去と現在の近傍観測がずれるのを防ぐため</label>
+          <label><input type="radio" name="quiz-5" value="b"> 地図上の位置訂正を消し、速度指令が絶対に急変しないようにするため</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
+
+        <div class="quiz" data-answer="b" data-explanation="車輪が見逃した滑りは、地図補正だけではodom側の移動履歴に復元されません。局所地図の更新と、LIOやVIOなど機体移動を観測できる計測源を検討します。連続性は正確さの保証ではありません。">
+          <p class="quiz-number">QUESTION 6</p>
+          <h3>車輪が回らず機体が滑った。LiDAR地図照合でmap上の位置を直せば、odom上の過去の障害物も必ず直る？</h3>
+          <label><input type="radio" name="quiz-6" value="a"> はい。map → odomの補正が過去の局所観測も自動で修正する</label>
+          <label><input type="radio" name="quiz-6" value="b"> いいえ。odomが見逃した移動と、局所観測の整合性は別に扱う</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
       </section>
 
       <footer class="course-footer">
         <p>ROS 2 SLAM・Localization・Navigation2 学習教材</p>
-        <p>対象：Ubuntu 22.04 / ROS 2 Humble · 情報確認日：2026-09-17</p>
+        <p>対象：Ubuntu 22.04 / ROS 2 Humble · 情報確認日：2026-09-17 · オドメトリ・TF章更新：2026-10-13</p>
       </footer>
     </main>
   </div>
