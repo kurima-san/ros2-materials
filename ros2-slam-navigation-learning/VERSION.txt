@@ -1,4 +1,4 @@
 ros2-slam-navigation-learning
-Version: 1.4.1
-Build: ros2-slam-navigation-learning-v1.4.1-20261015
+Version: 1.4.2
+Build: ros2-slam-navigation-learning-v1.4.2-20261015
 Source date: 2026-10-15

@@ -860,6 +860,10 @@ main {
   gap: 14px;
 }
 
+.costmap-scope-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
 .costmap-picture-card,
 .costmap-cell-detail {
   margin: 0;
@@ -924,6 +928,17 @@ main {
 .costmap-inscribed { background: #d64d64; }
 .costmap-lethal { background: #25364b; }
 .costmap-unknown { background: repeating-linear-gradient(135deg, #e2e6eb 0 4px, #9ba7b6 4px 5px); }
+
+.costmap-line-key {
+  flex: 0 0 24px;
+  height: 0;
+  border-top: 4px solid;
+}
+
+.costmap-path-key { border-color: #087d67; }
+.costmap-motion-key { border-color: #7542c8; }
+.costmap-rejected-key { border-color: #b31d37; border-top-style: dashed; }
+.costmap-window-key { border-color: #4163c9; border-top-style: dashed; }
 
 .costmap-cell-detail img {
   max-width: 640px;

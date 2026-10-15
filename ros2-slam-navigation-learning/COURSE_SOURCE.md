@@ -978,6 +978,30 @@ Nav2内部の代表的なコスト値は次の通りである。
 
 「大局的に考える」ときの大局を、ここではNav2の用語に合わせて**大域（Global）**と呼ぶ。大域は「目的地まで、どの通路を選ぶか」、局所（Local）は「直近で、どう動けばその経路へ進めるか」を担う。
 
+<div class="costmap-visual" id="costmap-scope-picture">
+<div class="costmap-picture-grid costmap-scope-grid">
+<figure class="costmap-picture-card">
+<figcaption><strong>① 大域：目的地までの通路を選ぶ</strong><span>Global Costmap / map基準 / 図の全体は8 m × 6 m</span></figcaption>
+<img src="assets/figures/costmap-global-overview.svg" width="512" height="408" alt="大域コストマップの全体図。中央の大きな設備の上側に通路A、下側に通路B。緑の経路はロボットRから台車を避けてAを通り、右の目的地Gへ向かう。R周辺の青い破線枠は局所図に対応する。">
+<p>壁・台車の周囲にもコストがある。Plannerは目的地Gまでを見て、距離やコストなどを評価し、この例では通路Aを通る緑の経路を作る。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>② 局所：目前でどう動くかを選ぶ</strong><span>Local Costmap / odom基準 / 青枠の3 m × 3 mを拡大</span></figcaption>
+<img src="assets/figures/costmap-local-window.svg" width="512" height="408" alt="大域図の青枠に対応する局所コストマップ。中央のロボットRの右前に台車があり、周囲に赤・橙・黄のコスト。緑は大域経路の近傍部分、紫は短い動きの例。赤い破線の直進候補は台車に衝突するため×。Gはこの図の外。">
+<p>Controllerは近傍のコスト、TFで変換した経路、現在姿勢・速度を使う。赤い破線の直進候補は衝突するため採用できない。紫は衝突を避けて進む短い動きの例で、これに対応する速度指令を判断する。</p>
+</figure>
+</div>
+<ul class="costmap-picture-legend" aria-label="大域・局所図の線の凡例">
+<li><span class="costmap-line-key costmap-path-key" aria-hidden="true"></span><span>緑：大域経路</span></li>
+<li><span class="costmap-line-key costmap-motion-key" aria-hidden="true"></span><span>紫：直近の動きの例</span></li>
+<li><span class="costmap-line-key costmap-rejected-key" aria-hidden="true"></span><span>赤い破線・×：衝突する候補</span></li>
+<li><span class="costmap-line-key costmap-window-key" aria-hidden="true"></span><span>青い破線：局所窓の範囲</span></li>
+</ul>
+<p><strong>大域と局所で、セルのコストの意味が変わるわけではない。</strong>濃い色は障害物、赤は機体中心を置くと衝突する領域、黄～橙は近づくほど避けたい領域であり、6.4節と同じである。違うのは、主に扱う範囲・座標系と、そのコストを使って何を決めるかである。</p>
+<p><strong>目的地Gが局所窓の外にあってもよい。</strong>局所側は、目的地へ続く大域経路の近傍部分を参照できる。ロボットが進むにつれて窓が移動し、次の範囲を観測・更新しながら指令を繰り返す。</p>
+<p class="costmap-picture-note">範囲を比較するため、同じ観測・解像度・膨張設定を使い、mapとodomの原点・軸をそろえて描いた。実際のLocal CostmapはGlobalの画像を切り出して作るのではなく、独立したレイヤーと観測から更新する。緑・紫の線は処理の役割を示す模式例であり、実際の経路・軌道はプラグインと機体の運動制約で変わる。紫の線がコストマップ自体の出力という意味ではない。</p>
+</div>
+
 | 観点 | Global Costmap：大域 | Local Costmap：局所 |
 |---|---|---|
 | 主な問い | 目的地までどこを通るか | 今の周囲で、次にどう動くか |
@@ -1112,6 +1136,30 @@ flowchart TB
 ### 6.10 時系列の具体例：通路に台車が現れたら {#costmap-corridor}
 
 目的地へ向かう通路Aと、少し遠回りになる通路Bがある。保存地図ではどちらも通れるが、走行中にAへ台車が置かれたとする。
+
+次の図は、6.5節の場面で、台車などが増えて通路A全体が塞がれた場合である。**「局所で止まれること」と「別の通路へ経路を変えられること」は別の処理**になる。
+
+<div class="costmap-visual" id="costmap-replanning-picture">
+<div class="costmap-picture-grid">
+<figure class="costmap-picture-card">
+<figcaption><strong>① Localが閉塞を検知</strong><span>局所：旧経路をそのまま進めない</span></figcaption>
+<img src="assets/figures/costmap-local-blocked.svg" width="512" height="408" alt="局所コストマップで通路Aを塞ぐ障害物が縦に並び、古い緑の経路が赤い衝突領域へ入る。×で衝突位置を示し、ロボットRにはSTOPと表示。別通路Bは局所窓の外。">
+<p>追加された障害物と膨張コストで、旧経路を先へ進めない。この例では停止する。通路Bは窓の外なので、局所の短い回避だけでBの全経路を決められるわけではない。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>② Globalが閉塞前のままだと</strong><span>大域：再計画してもAを選び得る</span></figcaption>
+<img src="assets/figures/costmap-global-unaware.svg" width="512" height="408" alt="大域コストマップの全体図には通路Aの閉塞がまだ反映されず、緑の経路はAを選んでいる。赤い×は局所で判明した衝突位置を重ねた注記。下側には通路Bもある。">
+<p>Globalの格子では、Aがまだ通れる状態に見える。Localで止まっていても、同じGlobalを使う再計画ではAを選び続ける場合がある。赤い×はLocalで見つかった衝突位置の注記であり、Globalの障害物セルではない。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>③ Globalへ反映して再計画</strong><span>大域：通路Bの迂回経路を選べる</span></figcaption>
+<img src="assets/figures/costmap-global-replanned.svg" width="512" height="408" alt="通路Aを塞ぐ障害物と周囲のコストが大域コストマップにも追加された図。新しい緑の経路はロボットRから下側の通路Bを回り、右の目的地Gへ到達する。">
+<p>Global側の障害物レイヤーにも閉塞を反映し、Plannerを再実行する。この例ではBを回る新しい経路ができ、Controllerはその近傍部分を再び追従する。</p>
+</figure>
+</div>
+<p><strong>障害物情報をGlobalへ反映する処理と、経路を計算し直す処理の両方が必要。</strong>Localの格子を更新しただけで、Globalや経路が自動的に同じ状態へ変わるわけではない。Globalの更新と、BTなどによる再計画要求を分けて確認する。</p>
+<p class="costmap-picture-note">これは処理の関係を説明するために、Localが先に閉塞を検知し、Globalが後から更新される状態を並べた図である。更新の順序・周期や停止動作は実装と設定による。図の寸法・コストの設定は6.5節と共通で、緑線は特定のNav2プラグインの実測出力ではない。</p>
+</div>
 
 | 段階 | コストマップと計画の状態 | ロボットの動作 |
 |---|---|---|
