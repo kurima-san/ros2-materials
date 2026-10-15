@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="416" height="288" viewBox="0 0 416 288" role="img" aria-labelledby="title desc">
+<title id="title">視野モデルと減衰の加速</title><desc id="desc">実際の3D視野を上から見た模式図。Aは視野モデル内、Bは外。視野内の古い記録は設定に応じて減衰を加速する。視野モデルだけで遮蔽や空き領域を保証できない。</desc>
+<defs><pattern id="unknown" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#e2e6eb"/><path d="M-2 2L2-2M0 8L8 0M6 10L10 6" stroke="#9ba7b6" stroke-width="1.2"/></pattern></defs>
+<rect width="416" height="288" fill="#f5f7fa" rx="10"/>
+<polygon points="58,155 370,35 370,265" fill="#dfedf8" stroke="#416786" stroke-width="1"/>
+<circle cx="58" cy="155" r="18" fill="#245acf"/>
+<text x="58" y="161" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#ffffff">L</text>
+<rect x="246" y="116" width="24" height="24" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" />
+<text x="258" y="134" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#ffffff">A</text>
+<rect x="106" y="36" width="24" height="24" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" />
+<text x="118" y="54" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#ffffff">B</text>
+<text x="265" y="190" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#25364b">FOV / frustum</text>
+</svg>

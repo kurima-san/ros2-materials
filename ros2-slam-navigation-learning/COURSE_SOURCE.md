@@ -956,6 +956,22 @@ flowchart LR
 | 保存済み2D占有地図 `/map` | 地図作成時に、どこが壁・空き・未観測だったか | StaticLayer、AMCLなど |
 | コストマップ | 今の情報と機体の大きさを考えると、どこを通りたいか・避けたいか | Nav2のPlanner、Controller |
 
+地図の名前が似ていても、渡す先は異なる。3D点群地図をLocalizerへ渡す流れと、2D占有地図をCostmapへ渡す流れを図で分けて見る。
+
+```mermaid
+flowchart TB
+    PCD["保存済み3D点群地図"] --> LOC["3D Localizer<br/>観測との照合"]
+    SCAN["現在のセンサー観測"] --> LOC
+    LOC --> TF["map上の姿勢・map → odom"]
+    PCD -. "別途、投影・通行可否の確認" .-> MAP["保存済み2D占有地図 /map"]
+    MAP --> STATIC["StaticLayer"]
+    STATIC --> COST["設定先のCostmap"]
+    SCAN --> OBS["Obstacle / Voxel / STVL"]
+    OBS --> COST
+```
+
+点線は別途用意する地図生成処理であり、Localizerを起動するだけで自動的に2D地図へ変換される意味ではない。STVLも障害物を記録するレイヤーであり、地図上の自己位置や`map → odom`を求める担当ではない。
+
 LIOが内部で使う「局所点群地図」は、点群を照合して連続した移動を推定するための地図である。Nav2のLocal Costmapは移動先を評価するための格子であり、同じ「局所」という名前でも用途とデータ構造が異なる。
 
 保存済み地図にない台車や人も、現在のセンサー観測からコストマップへ追加できる。逆に、壁の周りには物体がないセルでも高いコストを付け、壁際を避ける経路を選びやすくする。したがって、**占有地図をそのまま表示したものがコストマップ、というわけではない。**
@@ -1014,11 +1030,41 @@ Nav2内部の代表的なコスト値は次の通りである。
 
 これは典型構成であり、GlobalとLocalでフレーム、範囲、解像度が必ずこの組み合わせに固定されるわけではない。パラメータの`global_frame`は「そのコストマップ全体の基準座標」という意味なので、**Local Costmapの`global_frame: odom`も正しい設定**である。
 
-Local Costmapの窓はロボットとともに移動するが、`odom`の座標軸がロボットとともに回転するわけではない。ロボットが前進すると窓の原点が移り、新しく入った範囲を更新し、範囲外の情報は保持しなくなる。8 m四方を機体中心に置けば、前方に使える長さは概ね4 mである。センサー有効距離と合わせ、停止距離やControllerの予測範囲を収める必要がある。
+Local Costmapの窓はロボットとともに移動するが、`odom`の座標軸がロボットとともに回転するわけではない。ロボットが前進すると窓の原点が移り、新しく入った範囲を更新し、窓の外はその2Dコストマップの対象外になる。STVLの内部ボクセルなど、レイヤーが別に持つ記録まで直ちに削除されるかは別の仕組みである。8 m四方を機体中心に置けば、前方に使える長さは概ね4 mである。センサー有効距離と合わせ、停止距離やControllerの予測範囲を収める必要がある。
+
+<div class="costmap-visual" id="map-rolling-picture">
+<div class="costmap-picture-grid costmap-scope-grid">
+<figure class="costmap-picture-card">
+<figcaption><strong>t0：Pが局所窓の中にある</strong><span>座標軸はodomに固定</span></figcaption>
+<img src="assets/figures/map-rolling-0.svg" width="464" height="254" alt="固定されたodom座標上で、ロボットRを中心とする青い窓に障害物Pが入り、Qは窓の外にある。">
+<p>青枠の中が現在の局所2Dコストマップ。灰色の外側は位置関係を示す背景で、この窓の計画用格子には含まれない。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>t1：窓が右へ移動する</strong><span>PとQの物理的な位置は変わらない</span></figcaption>
+<img src="assets/figures/map-rolling-1.svg" width="464" height="254" alt="同じodom座標上でRと青い局所窓が右へ移動し、Pは窓外、Qは窓内になる。PとQそのものの位置は変わらない。">
+<p>Pが図の対象範囲から外れ、Qが窓に入る。これは時間減衰による消去とは別で、現実のPが消えたことも意味しない。</p>
+</figure>
+</div>
+</div>
 
 第2章とのつながりは、Localを`odom`にすることで近傍観測を連続した座標で蓄積し、遠方のmap上の経路はTFで局所制御側へ変換する点にある。地図補正が入れば経路との位置関係は変わり得るが、補正だけでodom上の障害物を飛ばさずに扱える。
 
 **Global＝静的障害物だけ、Local＝動的障害物だけ、ではない。** Globalにもセンサー障害物を入れられるし、Localにも壁のような静止物体が入る。2枚の地図は、主に計画の範囲と利用目的を分けている。Localの内容がGlobalへ自動コピーされるわけでもなく、必要な観測源をそれぞれのレイヤーに設定する。
+
+#### 大域コストマップと局所コストマップは重ね合わせるのか {#costmap-combine-question}
+
+基本的には別々に保持する。PlannerがGlobalを使って大域経路を作り、Controllerがその経路とLocalを使って速度指令を決める。
+
+```mermaid
+flowchart LR
+    G["大域コストマップ"] --> P["Planner"]
+    P --> PATH["目的地までの大域経路"]
+    PATH --> C["Controller"]
+    L["局所コストマップ"] --> C
+    C --> V["速度指令"]
+```
+
+**組み合わせるのは、大域経路の近傍部分と局所の障害物情報である。** Controllerは経路を局所座標へ変換して評価する。GlobalとLocalのセル値を足し合わせて1枚にする処理ではない。RVizでは同じ座標系に変換して重ねて表示できるが、それは内部の地図を合成することとは区別する。レイヤーの合成は、それぞれのCostmapの中で次節のように行う。
 
 ### 6.6 レイヤーを重ねて1枚のコストマップを作る {#costmap-layers}
 
@@ -1044,6 +1090,32 @@ flowchart TB
 
 図は1枚のコストマップを作る概念図である。GlobalとLocalがそれぞれ独立に必要なレイヤーを持つ。典型的には`plugins: [static_layer, obstacle_layer, inflation_layer]`のように障害物を反映してからInflationを適用する。3D入力ならObstacleの代わりにVoxelやSTVLを選べる。STVLの実設定は第11章を参照する。
 
+<div class="costmap-visual" id="map-layers-picture">
+<div class="costmap-picture-grid costmap-scope-grid">
+<figure class="costmap-picture-card">
+<figcaption><strong>① StaticLayer：保存地図</strong><span>地図作成時の壁がある</span></figcaption>
+<img src="assets/figures/map-layer-static.svg" width="416" height="288" alt="外周の壁だけを含む格子。中央は空きで、後から置かれた台車は保存地図に含まれない。">
+<p>保存地図には外周の壁がある。後から置いた台車はまだ入っていない。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>② センサーのレイヤー</strong><span>現在観測した台車がある</span></figcaption>
+<img src="assets/figures/map-layer-sensor.svg" width="416" height="288" alt="中央の台車を障害物として登録した格子。それ以外の斜線セルは、このレイヤーに情報がないことを示す。">
+<p>ここでは台車だけを登録した状態を示す。斜線はこの層に情報がないセルで、保存地図の壁を消す指示ではない。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>③ 同じ格子へ合成する</strong><span>保存地図の壁と観測した台車</span></figcaption>
+<img src="assets/figures/map-layer-merged.svg" width="416" height="288" alt="外周の壁と中央の台車が共存する格子。未知値を特別扱いする最大値合成の例。">
+<p>この例では、未知値を特別扱いする最大値合成でStaticLayerの壁とセンサー側の台車を残す。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>④ Inflationを適用する</strong><span>障害物の周囲にコストを付ける</span></figcaption>
+<img src="assets/figures/map-layer-inflated.svg" width="416" height="288" alt="壁と台車の周囲に赤い衝突領域と黄から橙のコスト勾配を加えた格子。">
+<p>合成された障害物の周囲にコストを広げる。完成した格子をPlannerやControllerが参照する。</p>
+</figure>
+</div>
+<p class="costmap-picture-note">6.4節と同じ部屋・コストの配色を使った例。この4段階は1枚のCostmapの中の処理であり、GlobalとLocalを重ねた図ではない。例えば②から台車の記録を消せば台車由来のコストは消えるが、①にある壁は残る。</p>
+</div>
+
 重ね方は単純な足し算とは限らない。例えばObstacleLayerの`combination_method: 1`は、未知値を特別扱いしつつ高いコストを採る方式である。StaticLayerに壁が残っていれば、センサー側のレイヤーだけをFreeへ戻しても、合成後の壁は消えない。消えない障害物を調べるときは、どのレイヤーが値を供給しているかを確認する。
 
 VoxelやSTVLが内部で3Dを扱っても、通常のNav2が参照する完成結果は2Dである。床を障害物にせず、機体が衝突する高さの障害物を残す前処理が必要であり、階段や足の着地点が自動的に計画できるわけではない。
@@ -1058,18 +1130,45 @@ VoxelやSTVLが内部で3Dを扱っても、通常のNav2が参照する完成�
 4. センサー原点から有効な反射点へ至る光線上の空間を、障害物がない観測として更新する。これがRaytraceによる**Clearing**である。実装ではClearing後にMarkingを行い、終端の物体を残す。
 5. レイヤーを合成し、障害物周囲のInflationも更新する。
 
-```text
-前回：LiDAR ───── 台車（2 m）        壁（4 m）
-今回：LiDAR ──────────────── 壁（4 m）
-                     ↑
-       台車が移動し、この場所を光線が通れば消去できる
-```
+<div class="costmap-visual" id="map-clearing-picture">
+<div class="costmap-picture-grid">
+<figure class="costmap-picture-card">
+<figcaption><strong>① Aで反射：障害物を登録</strong><span>Marking</span></figcaption>
+<img src="assets/figures/map-ray-mark.svg" width="416" height="224" alt="LiDAR Lからの緑の光線が位置Aの物体で止まる。下段の格子では光線が通った部分は空き、Aは254として記録される。">
+<p>反射点Aに障害物を登録する。図の下段は光線上の格子の記録で、斜線は未確認の部分。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>② Aを通過：空きを観測</strong><span>Clearing</span></figcaption>
+<img src="assets/figures/map-ray-clear.svg" width="416" height="224" alt="物体が移動して光線がAを通り、背後の壁まで届く。下段では以前Aがあったセルが0へ戻る。">
+<p>新しい有効な光線がAを通って背後の壁まで届く。Aを空きとして更新できる。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>③ 新しい光線が来ない</strong><span>空きと確認できていない</span></figcaption>
+<img src="assets/figures/map-ray-unseen.svg" width="416" height="224" alt="新しい光線がなくAの現在状態は不明。下段の格子には以前の障害物254が残る。">
+<p>遮蔽・視野外・センサー停止などでは、Aが空いたとは分からない。標準ObstacleLayerでは、別の消去処理がなければ記録が残る。</p>
+</figure>
+</div>
+<p class="costmap-picture-note">光線とセルの対応を簡略化した図で、Inflationは省略している。右端の壁は以前から記録されているものとする。STVLの視野モデルを用いた時間減衰は、この標準Raytraceとは別の仕組みである。</p>
+</div>
 
 **点が届かなくなったことと、空いていると観測できたことは異なる。** 遮蔽で台車が見えない、センサーが別の方向を向いた、点群Topicが止まった、という理由だけでは、その場所を安全なFreeと判断できない。通常のObstacleLayerは観測されない障害物を時間だけで自動消去しない。`observation_persistence`も観測バッファの保持時間であり、格子に書いた障害物の寿命そのものではない。
 
 `marking`と`clearing`、`obstacle_max_range`と`raytrace_max_range`を区別し、無限遠LaserScanを使う場合の`inf_is_valid`もセンサーに合わせる。PointCloud2に「点がない方向」の光線が自動生成されるとは限らない。STVLのDecayは別の消去モデルであり、消えたセルを実際に安全と確認したことにはならない。
 
 未知領域は`track_unknown_space`で保持するかを決め、Planner側の`allow_unknown`などで通過を認めるかを決める。両者は別の設定である。探索のため未知へ進む構成と、既知の走行可能域だけを使う構成を混同しない。
+
+#### 局所の障害物は時間経過で消えるのか {#costmap-expiry-question}
+
+使うレイヤーと設定で異なる。次の「消える」を区別する。
+
+| 仕組み | 何によって見えなくなるか | 図の参照先 |
+|---|---|---|
+| 標準ObstacleLayer / VoxelLayer | 主に有効な光線によるClearing。時間だけの自動消去ではない | [観測の3場面](#map-clearing-picture) |
+| STVL | 古いボクセルを設定した時間モデルなどで期限切れにする | [STVLの時間経過](#stvl-temporal-guide) |
+| Rolling Window | その場所が局所2Dコストマップの対象範囲から外れる | [移動する窓](#map-rolling-picture) |
+| StaticLayerの壁 | 保存地図に残っていれば、他の層を消去しても合成結果に残る | [レイヤーの合成](#map-layers-picture) |
+
+STVL内部のボクセル寿命、観測バッファの保持時間、2D窓の範囲はそれぞれ別の設定である。センサーが止まって記録が減衰した場合も、「空いていると観測できた」とは扱わない。
 
 ### 6.8 FootprintとInflation：機体の大きさと余裕をどう表すか {#costmap-footprint}
 
@@ -1735,6 +1834,87 @@ map                         # 3D Localizerが補正
 
 STVLが常に正解という意味ではない。CPU・メモリ負荷、利用中のROS 2ディストリビューションに対応するブランチ、Plugin名とパラメータ名を、導入するSTVLのバージョンで確認する。最初に同じRosbagをSTVLと`VoxelLayer`へ再生し、点群停止後の残留時間、障害物の見逃し、更新周期を比較する。
 
+#### STVLの空間：3Dの記録を2Dの障害物へ写す {#stvl-spatial-guide}
+
+STVLは**Spatio-Temporal Voxel Layer**の略である。Spatioは3D空間をボクセルで扱うこと、Temporalはその記録を時間で管理することを表す。自己位置推定用の保存地図とは用途が異なり、観測した障害物をNav2のCostmapへ供給する。
+
+```mermaid
+flowchart TB
+    PC["前処理済みPointCloud2<br/>観測時刻のTFで変換"] --> VOX["STVLの3Dボクセル<br/>占有と登録・更新時刻を保持"]
+    TIME["時間減衰・視野モデル"] --> VOX
+    VOX --> XY["XY列ごとに集計<br/>2Dの障害物セルへ投影"]
+    XY --> MERGE["設定先のGlobalまたはLocal<br/>他レイヤーと合成"]
+    MERGE --> INF["Inflation<br/>周囲へコストを広げる"]
+```
+
+<div class="costmap-visual" id="stvl-spatial-picture">
+<div class="costmap-picture-grid">
+<figure class="costmap-picture-card">
+<figcaption><strong>① 3D点群を受け取る</strong><span>床除去・高さ範囲の選別後</span></figcaption>
+<img src="assets/figures/stvl-points.svg" width="416" height="288" alt="XYZ軸上の3D点群。位置Aでは複数の高さ、位置Bでは高い位置だけに観測点がある。">
+<p>Aには高さの異なる点があり、Bには高い位置だけに点がある。Bのような張り出しも、機体が当たる高さなら残す。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>② ボクセルへ登録する</strong><span>占有と更新時刻を保持</span></figcaption>
+<img src="assets/figures/stvl-voxels.svg" width="416" height="288" alt="点群を3Dの小さな箱へまとめた図。Aには縦に3個のボクセル、Bには高い位置に1個のボクセルがある。">
+<p>小さな箱ごとに障害物の記録を持つ。再び点が登録されると、そのボクセルの更新時刻も新しくなる。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>③ XYの障害物セルへ投影</strong><span>Nav2が参照する2Dの格子へ</span></figcaption>
+<img src="assets/figures/stvl-projected.svg" width="416" height="288" alt="上から見たXY格子でAとBが障害物セルになる。説明用のmark_thresholdは1で、Bの高い1個のボクセルも2D障害物へ反映される。">
+<p>例として<code>mark_threshold: 1</code>なら、採用した高さにボクセルが1個以上ある列を障害物にできる。A・BそれぞれのXY位置に対応するセルが障害物になる。</p>
+</figure>
+</div>
+<p class="costmap-picture-note">青い点・箱は3Dの記録を示す色で、6.4節のコスト値の配色ではない。③の濃いセルが2D障害物に対応し、灰色はこの図で障害物記録を描いていない列である。灰色を観測済みFreeと断定しない。実際の投影は高さ範囲・閾値・他レイヤーの設定に従う。</p>
+</div>
+
+同じXY列に複数のボクセルがある場合、1個が期限切れになっても、残った個数が`mark_threshold`を満たす間は2D障害物が残り得る。3Dで記録が1個消えることと、2Dのセルが消えることも一対一ではない。
+
+#### STVLの時間：古い記録が残り、期限を超えると消える {#stvl-temporal-guide}
+
+次は、障害物が位置AからBへ移動した例である。**`decay_model: 0`、`voxel_decay: 2.0`の線形モデル、減衰の加速なし**とし、Aは0秒以降に再登録されず、Bは移動後も新しい観測で登録され続けると仮定する。時刻はボクセルの登録・更新を基準にした説明用の値であり、既定値や実測値ではない。
+
+<div class="costmap-visual" id="stvl-decay-picture">
+<div class="costmap-picture-grid">
+<figure class="costmap-picture-card">
+<figcaption><strong>t = 0.0秒：Aを観測</strong><span>Aの記録を登録する</span></figcaption>
+<img src="assets/figures/stvl-decay-0.svg" width="416" height="272" alt="STVLの記録を上から見た図。Aに青い占有記録があり、将来の位置Bにはまだ記録がない。Aの経過時間は0秒。">
+<p>Aのボクセルを登録する。Bの破線枠は、後で移動する位置を示す注記。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>t = 1.0秒：物体はBへ移動</strong><span>Aの古い記録もまだ残る</span></figcaption>
+<img src="assets/figures/stvl-decay-1.svg" width="416" height="272" alt="物体はBへ移動しBの新しい記録ができる。Aの記録もまだ期限内なので残り、AとBの両方が青いセルとして表示される。">
+<p>Bを登録しても、Aを即座に消すとは限らない。Aは最後の登録から1秒なので、この例では期限内。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>t = 2.2秒：Aが期限切れ</strong><span>Bは再観測により残る</span></figcaption>
+<img src="assets/figures/stvl-decay-2.svg" width="416" height="272" alt="最後の登録から2秒を超えたAの記録がなくなり、継続的に再登録されているBだけが青いセルとして残る。">
+<p>Aの記録は時間条件を満たした更新で削除される。Bは更新時刻が新しくなり続けるため残る。</p>
+</figure>
+</div>
+<p><strong>これは「古い記録の寿命」であり、障害物コストを時間に比例して254→138→0へ下げる図ではない。</strong>残るボクセルから2Dの障害物を作り、その周囲の距離に応じたコストはInflationが計算する。</p>
+<p class="costmap-picture-note">青はこのSTVL層のボクセル記録、灰色はその記録がない状態。Aの記録がなくなった後の最終セルがFree・Unknown・他レイヤー由来の障害物のどれになるかは、合成方式などで決まる。センサー停止でも記録が期限切れになる場合があるため、消えたことを「空いていると観測した」とは扱わない。</p>
+</div>
+
+<figure class="costmap-visual costmap-cell-detail" id="stvl-lifetime-picture">
+<figcaption><strong>再観測すると、その場所の記録の寿命も更新される</strong></figcaption>
+<img src="assets/figures/stvl-lifetime.svg" width="720" height="240" alt="3本の時間バー。ClearingなどがないObstacleLayerの記録は残り続ける。線形寿命2秒のSTVLは2秒後に期限切れとなる。1.5秒で再登録したSTVLは約3.5秒まで記録が延長される。">
+<p>青いバーは記録が残る期間を示す。最上段は新しいClearing・リセットなどがない場合。下2段は同じ2秒の線形寿命で、紫の縦線は1.5秒での再登録を表す。実際の削除は期限を超えた後の更新処理で起きる。</p>
+</figure>
+
+`observation_persistence`は入力の観測バッファの保持時間、`voxel_decay`は時間モデルに使う値であり、同じものではない。上の図は古い観測を再利用してAを再登録しない前提である。実機では`clear_after_reading`なども含め、観測の再利用とボクセルの更新時刻を確認する。
+
+#### 視野モデル：古い記録の減衰を速める範囲 {#stvl-frustum-guide}
+
+STVLは通常のRaytraceと同一の方法で空間を消すのではなく、センサーの視野モデル（Frustum）内にある古いボクセルの減衰を、設定に応じて加速できる。Depth Cameraや3D LiDARの視野形状・取付姿勢をモデルに反映する。
+
+<figure class="costmap-visual costmap-cell-detail" id="stvl-frustum-picture">
+<figcaption><strong>視野モデル内のAと、外側のB</strong></figcaption>
+<img src="assets/figures/stvl-frustum.svg" width="416" height="288" alt="LiDAR Lの視野モデルを上から見た模式図。青い範囲の内側に古い記録A、外側に古い記録Bがある。Aは設定に応じて減衰を加速する対象になり、Bは通常の時間モデルで扱う。">
+<p>Aは視野モデル内なので、<code>decay_acceleration</code>などの設定に応じて減衰を速める対象になり得る。Bは視野外でも、通常の時間モデルによる期限切れは起こり得る。新しい点が登録され続ける物体は更新時刻が新しくなる。</p>
+<p class="costmap-picture-note">実際の3D視野を平面で簡略化した図。視野モデルの内側でも、遮蔽・反射特性・欠測によって物体が見えないことがある。視野内という条件だけで、空き領域が証明されるわけではない。以下のYAMLでは加速を設定しているため、加速なしの2秒の時系列図と消去時刻が一致するとは限らない。</p>
+</figure>
+
 #### STVLをLocal Costmapへ設定する
 
 次はROS 2 Humble系STVLで使う構成の出発点である。センサーモデルの視野角は例示値をコピーせず、LiDARの仕様と取付姿勢に合わせる。
@@ -2189,6 +2369,8 @@ ros2 bag record -o slam_debug \
 - [Nav2 Humble：Global/Local Costmapの設定例](https://github.com/ros-navigation/navigation2/blob/humble/nav2_bringup/params/nav2_params.yaml)
 - [Nav2 Humble：再計画とRecoveryのBehavior Tree](https://github.com/ros-navigation/navigation2/blob/humble/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml)
 - [Spatio-Temporal Voxel Layer（STVL）](https://github.com/SteveMacenski/spatio_temporal_voxel_layer)
+- [STVL Humble：ボクセルの登録・時間減衰・視野内の減衰加速](https://github.com/SteveMacenski/spatio_temporal_voxel_layer/blob/humble/spatio_temporal_voxel_layer/src/spatio_temporal_voxel_grid.cpp)
+- [STVL Humble：2Dコストへの投影とレイヤー合成](https://github.com/SteveMacenski/spatio_temporal_voxel_layer/blob/humble/spatio_temporal_voxel_layer/src/spatio_temporal_voxel_layer.cpp)
 - [Nav2：Smoothing Odometry using robot_localization](https://docs.nav2.org/setup_guides/odom/setup_robot_localization.html)
 - [Nav2：Using VIO to Augment Robot Odometry](https://docs.nav2.org/tutorials/docs/integrating_vio.html)
 - [ROS REP-105：Coordinate Frames for Mobile Platforms](https://www.ros.org/reps/rep-0105.html)

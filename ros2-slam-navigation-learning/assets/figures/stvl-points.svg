@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="416" height="288" viewBox="0 0 416 288" role="img" aria-labelledby="title desc">
+<title id="title">3D観測から2Dへの投影：points</title><desc id="desc">Aには複数の高さの観測、Bには高い位置の観測がある。床は除去済みで、採用する高さ内のボクセルをXY列ごとに集計する。</desc>
+<defs><pattern id="unknown" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#e2e6eb"/><path d="M-2 2L2-2M0 8L8 0M6 10L10 6" stroke="#9ba7b6" stroke-width="1.2"/></pattern></defs>
+<rect width="416" height="288" fill="#f5f7fa" rx="10"/>
+<polyline points="192,112 67,172" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="217,124 92,184" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="242,136 117,196" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="267,148 142,208" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="292,160 167,220" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="317,172 192,232" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="342,184 217,244" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="192,112 342,184" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="167,124 317,196" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="142,136 292,208" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="117,148 267,220" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="92,160 242,232" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="67,172 217,244" fill="none" stroke="#b8c3cf" stroke-width="1"/>
+<polyline points="192,112 192,31" fill="none" stroke="#33445a" stroke-width="2"/>
+<text x="192" y="22.900000000000006" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">z</text>
+<text x="349.5" y="187.6" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">x</text>
+<text x="57.0" y="176.8" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">y</text>
+<circle cx="192.0" cy="159.4" r="3.6" fill="#397bb6"/>
+<circle cx="204.5" cy="154.60000000000002" r="3.6" fill="#397bb6"/>
+<circle cx="179.5" cy="151.6" r="3.6" fill="#397bb6"/>
+<circle cx="192.0" cy="168.70000000000002" r="3.6" fill="#397bb6"/>
+<circle cx="192.0" cy="132.4" r="3.6" fill="#397bb6"/>
+<circle cx="204.5" cy="127.60000000000001" r="3.6" fill="#397bb6"/>
+<circle cx="179.5" cy="124.6" r="3.6" fill="#397bb6"/>
+<circle cx="192.0" cy="141.70000000000002" r="3.6" fill="#397bb6"/>
+<circle cx="192.0" cy="105.4" r="3.6" fill="#397bb6"/>
+<circle cx="204.5" cy="100.60000000000001" r="3.6" fill="#397bb6"/>
+<circle cx="179.5" cy="97.6" r="3.6" fill="#397bb6"/>
+<circle cx="192.0" cy="114.70000000000002" r="3.6" fill="#397bb6"/>
+<circle cx="242.0" cy="129.4" r="3.6" fill="#397bb6"/>
+<circle cx="254.5" cy="124.60000000000001" r="3.6" fill="#397bb6"/>
+<circle cx="229.5" cy="121.6" r="3.6" fill="#397bb6"/>
+<circle cx="242.0" cy="138.70000000000002" r="3.6" fill="#397bb6"/>
+<text x="192.0" y="207.0" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">A</text>
+<text x="242.0" y="231.0" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">B</text>
+</svg>

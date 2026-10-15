@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="416" height="224" viewBox="0 0 416 224" role="img" aria-labelledby="title desc">
+<title id="title">観測による障害物の登録・消去：mark</title><desc id="desc">LはLiDAR、Aは以前の障害物位置。緑は有効な光線、下段は光線上の格子の記録。未観測は斜線。</desc>
+<defs><pattern id="unknown" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#e2e6eb"/><path d="M-2 2L2-2M0 8L8 0M6 10L10 6" stroke="#9ba7b6" stroke-width="1.2"/></pattern></defs>
+<rect width="416" height="224" fill="#f5f7fa" rx="10"/>
+<text x="20" y="24" text-anchor="start" font-family="sans-serif" font-size="16" fill="#25364b">t0: hit A</text>
+<circle cx="48.0" cy="70" r="16" fill="#245acf"/>
+<text x="48.0" y="76" text-anchor="middle" font-family="sans-serif" font-size="17" fill="#ffffff">L</text>
+<rect x="381.0" y="40" width="14" height="60" fill="#25364b" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="178.0" y="57" width="20" height="26" fill="#25364b" stroke="#b8c3cf" stroke-width="0.6" />
+<text x="188.0" y="112" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#25364b">A</text>
+<polyline points="64.0,70 178.0,70" fill="none" stroke="#087d67" stroke-width="3"/>
+<circle cx="178.0" cy="70" r="4" fill="#087d67"/>
+<rect x="18" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="38" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="58" y="150" width="20" height="30" fill="#ffffff" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="78" y="150" width="20" height="30" fill="#ffffff" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="98" y="150" width="20" height="30" fill="#ffffff" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="118" y="150" width="20" height="30" fill="#ffffff" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="138" y="150" width="20" height="30" fill="#ffffff" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="158" y="150" width="20" height="30" fill="#ffffff" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="178" y="150" width="20" height="30" fill="#25364b" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="198" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="218" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="238" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="258" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="278" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="298" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="318" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="338" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="358" y="150" width="20" height="30" fill="url(#unknown)" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="378" y="150" width="20" height="30" fill="#25364b" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="178" y="150" width="20" height="30" fill="none" stroke="#4163c9" stroke-width="0.6" stroke-dasharray="3 2"/>
+<text x="188.0" y="205" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">254</text>
+<text x="48.0" y="205" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#25364b">L</text>
+</svg>

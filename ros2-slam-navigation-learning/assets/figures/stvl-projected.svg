@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="416" height="288" viewBox="0 0 416 288" role="img" aria-labelledby="title desc">
+<title id="title">3D観測から2Dへの投影：projected</title><desc id="desc">Aには複数の高さの観測、Bには高い位置の観測がある。床は除去済みで、採用する高さ内のボクセルをXY列ごとに集計する。</desc>
+<defs><pattern id="unknown" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#e2e6eb"/><path d="M-2 2L2-2M0 8L8 0M6 10L10 6" stroke="#9ba7b6" stroke-width="1.2"/></pattern></defs>
+<rect width="416" height="288" fill="#f5f7fa" rx="10"/>
+<rect x="82" y="24" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="124" y="24" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="166" y="24" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="208" y="24" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="250" y="24" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="292" y="24" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="82" y="66" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="124" y="66" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="166" y="66" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="208" y="66" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="250" y="66" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="292" y="66" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="82" y="108" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="124" y="108" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="166" y="108" width="42" height="42" fill="#25364b" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="208" y="108" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="250" y="108" width="42" height="42" fill="#25364b" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="292" y="108" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="82" y="150" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="124" y="150" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="166" y="150" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="208" y="150" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="250" y="150" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="292" y="150" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="82" y="192" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="124" y="192" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="166" y="192" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="208" y="192" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="250" y="192" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<rect x="292" y="192" width="42" height="42" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<text x="187.0" y="136.0" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#ffffff">A</text>
+<text x="271.0" y="136.0" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#ffffff">B</text>
+<text x="208" y="263" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">XY / mark_threshold = 1</text>
+</svg>

@@ -44,6 +44,17 @@
 
 6.5節では、大域の全体図と局所窓の拡大図で、同じコストを経路選択と直近の速度判断へ使う違いを説明します。6.10節では、局所で閉塞を検知して停止する状態、大域に未反映の状態、大域にも反映して別通路へ再計画する状態を並べています。
 
+地図関連の図は次の場所から読めます。
+
+| 節 | 図で理解する内容 |
+|---|---|
+| 6.4 | 3D地図・2D地図の利用先、実空間とコストの格子 |
+| 6.5 | 大域と局所、移動窓、PlannerとControllerの関係 |
+| 6.6 | 保存地図・観測レイヤー・合成結果・Inflationの4段階 |
+| 6.7 | 光線による登録と消去、新しい観測がない場合 |
+| 6.10 | 局所での停止と、大域への反映・再計画 |
+| 11.3 | STVLの点群・3Dボクセル・2D投影、時間減衰、再登録、視野モデル |
+
 1. 占有地図とコストマップの違い、内部コスト値の意味
 2. 大域での通路選択と局所での速度判断、mapとodomの使い分け
 3. Static・Obstacle・Voxel・STVL・Inflationの役割
@@ -77,14 +88,17 @@
 | `assets/styles.css` | レイアウトと印刷用スタイル |
 | `assets/app.js` | 検索、進捗、コピー、クイズなど |
 | `assets/mermaid.min.js` | 接続図のオフライン描画 |
-| `assets/figures/costmap-*.svg` | 実空間・膨張コスト・大域と局所・閉塞時の再計画の図 |
+| `assets/figures/*.svg` | コストマップ・レイヤー合成・障害物の消去・STVLの図 |
 | `scripts/generate_costmap_figures.py` | コストマップ図の再生成（Python標準ライブラリのみ） |
 | `scripts/generate_costmap_scope_figures.py` | 大域・局所と再計画の図の再生成（Python標準ライブラリのみ） |
+| `scripts/generate_map_lifecycle_figures.py` | レイヤー合成・観測消去・移動窓・STVLの図の再生成 |
 | `course-template.html` | 教材HTMLを再生成するためのPandocテンプレート |
 | `licenses` | 同梱フォント・描画ライブラリのライセンス |
 | `VERSION.txt` | ビルド情報 |
 
 コストマップ図を変更するときは、教材フォルダーで`python3 scripts/generate_costmap_figures.py`を実行します。大域・局所と再計画の図は`python3 scripts/generate_costmap_scope_figures.py`で再生成します。図は通常版ではSVGファイルを参照し、単一ファイル版では同じSVGをデータURLとして内包しています。再生成後は単一ファイル版の対応する画像データも更新します。
+
+レイヤー・消去・STVLの図は`python3 scripts/generate_map_lifecycle_figures.py`で再生成します。SVGは拡大と印刷に対応し、スマートフォンでは比較図を縦に並べます。
 
 ## 対象
 
