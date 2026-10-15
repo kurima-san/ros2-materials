@@ -850,6 +850,102 @@ main {
   margin: 0;
 }
 
+.costmap-visual {
+  margin: 24px 0;
+}
+
+.costmap-picture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 14px;
+}
+
+.costmap-picture-card,
+.costmap-cell-detail {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  break-inside: avoid;
+}
+
+.costmap-visual figcaption {
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.costmap-picture-card figcaption span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.costmap-visual img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.costmap-picture-card p,
+.costmap-cell-detail p {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+}
+
+.course-content .costmap-picture-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin: 18px 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.86rem;
+}
+
+.costmap-picture-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.costmap-swatch {
+  flex: 0 0 24px;
+  height: 20px;
+  border: 1px solid #9ba7b6;
+  border-radius: 3px;
+}
+
+.costmap-free { background: #ffffff; }
+.costmap-gradient { background: linear-gradient(90deg, #fff2bc, #ea7d2c); }
+.costmap-inscribed { background: #d64d64; }
+.costmap-lethal { background: #25364b; }
+.costmap-unknown { background: repeating-linear-gradient(135deg, #e2e6eb 0 4px, #9ba7b6 4px 5px); }
+
+.costmap-cell-detail img {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.costmap-picture-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+@media print {
+  .costmap-picture-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .costmap-visual {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
 .table-scroll {
   max-width: 100%;
   margin: 18px 0 24px;

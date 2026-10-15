@@ -40,6 +40,8 @@
 
 [第6章：コストマップ](index.html#costmap-guide)では、次の流れを図・比較表・通路の具体例で説明します。単一ファイル版にも同じ内容を収録しています。
 
+6.4節の冒頭には、同じ部屋を「実空間 → 障害物セル → 周囲へ広げたコスト」の3枚で比較する図と、台車へ近づく6セルの数値を拡大した図を収録しています。
+
 1. 占有地図とコストマップの違い、内部コスト値の意味
 2. 大域での通路選択と局所での速度判断、mapとodomの使い分け
 3. Static・Obstacle・Voxel・STVL・Inflationの役割
@@ -73,9 +75,13 @@
 | `assets/styles.css` | レイアウトと印刷用スタイル |
 | `assets/app.js` | 検索、進捗、コピー、クイズなど |
 | `assets/mermaid.min.js` | 接続図のオフライン描画 |
+| `assets/figures/costmap-*.svg` | 実空間・障害物格子・膨張コスト・セル値の図 |
+| `scripts/generate_costmap_figures.py` | コストマップ図の再生成（Python標準ライブラリのみ） |
 | `course-template.html` | 教材HTMLを再生成するためのPandocテンプレート |
 | `licenses` | 同梱フォント・描画ライブラリのライセンス |
 | `VERSION.txt` | ビルド情報 |
+
+コストマップ図を変更するときは、教材フォルダーで`python3 scripts/generate_costmap_figures.py`を実行します。図は通常版ではSVGファイルを参照し、単一ファイル版では同じSVGをデータURLとして内包しています。
 
 ## 対象
 

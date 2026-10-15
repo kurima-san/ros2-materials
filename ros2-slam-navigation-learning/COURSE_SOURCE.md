@@ -911,7 +911,44 @@ flowchart LR
 
 **コストマップは、空間を格子状に区切り、「ここを通れるか」「どの程度避けたいか」を各セルの数値で表した、経路・速度計算用の地図である。** コストマップ自体がハンドルを切ったり、速度指令を出したりするわけではない。PlannerとControllerがその値を評価して動作を決める。
 
-まず、これまで登場した地図を区別する。
+まず、同じ部屋を上から見た次の3枚を見比べる。外周に壁があり、中央に台車が置かれ、左のロボットRが右の目的地Gへ向かう場面である。
+
+<div class="costmap-visual" id="costmap-picture">
+<div class="costmap-picture-grid">
+<figure class="costmap-picture-card">
+<figcaption><strong>① 実際の空間</strong><span>壁・台車・ロボットの配置</span></figcaption>
+<img src="assets/figures/costmap-scene.svg" width="416" height="288" alt="部屋を上から見た図。四方の壁、中央の台車、左のロボットR、右の目的地G。右上の斜線領域は未観測。">
+<p>濃い色の外周が壁、中央の小さな四角が台車。青い円がロボットの大きさを表す。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>② 障害物を格子へ入れる</strong><span>どのセルに物体があるか</span></figcaption>
+<img src="assets/figures/costmap-obstacles.svg" width="416" height="288" alt="同じ部屋を24×16セルに区切った図。壁と台車のセルは濃い色の254、空きは白の0、未観測は斜線の255。">
+<p>壁と台車があるセルを障害物として登録する。白いセルには障害物コストが付いていない。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>③ 周囲へコストを広げる</strong><span>機体の大きさと、近づきたくない度合い</span></figcaption>
+<img src="assets/figures/costmap-inflated.svg" width="416" height="288" alt="壁と台車の周囲を赤、その外側を橙から薄い黄色で示したコストマップ。緑の経路例は台車から余裕を取って迂回する。青い点線枠は下で拡大する6セル。">
+<p>赤は機体中心を置くと衝突する範囲。その外の黄～橙は、近いほど高いコストを持つ範囲。緑線は迂回経路の例。</p>
+</figure>
+</div>
+<ul class="costmap-picture-legend" aria-label="コストマップの凡例">
+<li><span class="costmap-swatch costmap-free" aria-hidden="true"></span><span><b>0</b>：障害物コストなし</span></li>
+<li><span class="costmap-swatch costmap-gradient" aria-hidden="true"></span><span><b>1～252</b>：近づくほど避けたい</span></li>
+<li><span class="costmap-swatch costmap-inscribed" aria-hidden="true"></span><span><b>253</b>：機体中心を置くと衝突</span></li>
+<li><span class="costmap-swatch costmap-lethal" aria-hidden="true"></span><span><b>254</b>：物体がある</span></li>
+<li><span class="costmap-swatch costmap-unknown" aria-hidden="true"></span><span><b>255</b>：未観測・未知</span></li>
+</ul>
+<figure class="costmap-cell-detail">
+<figcaption><strong>③の青い点線枠を拡大：台車へ近づく6セル</strong></figcaption>
+<img src="assets/figures/costmap-cell-detail.svg" width="600" height="152" alt="左から台車へ近づく6セル。障害物セル中心までの距離は1.0、0.8、0.6、0.4、0.2、0 m。内部コストは順に0、41、75、138、253、254。">
+<p>数字はセルの内部コスト、下段は障害物セル中心までの距離。右へ行くほど台車に近づく。例えば<b>138のセルには物体がなくても、「台車に近いので避けたい」という値が付く。</b></p>
+</figure>
+<p class="costmap-picture-note">説明用に1セルを0.20 m、円形機体の半径を0.20 m、<code>inflation_radius</code>を0.80 m、<code>cost_scaling_factor</code>を3.0とした。図の色はこの教材の凡例であり、RVizの配色とは限らない。緑線は簡単な格子探索で求めた経路例で、特定のNav2プラグインの出力ではない。R・G・経路は説明用の重ね描きであり、ロボット自身を障害物セルにしているわけではない。</p>
+</div>
+
+この図で特に見るのは、**物体がある濃いセルよりも広い範囲に色が付く**点である。ロボットを点として考えると、台車のすぐ横を通る経路も作れてしまう。機体の大きさを考えた衝突領域と、余裕を取りやすくするコストの勾配を加えることで、通る場所を評価できる。黄～橙の範囲は一律の通行禁止ではなく、経路・速度の評価に使う。
+
+これまで登場した地図は、次のように役割が異なる。
 
 | 情報 | 答える問い | 主な利用先 |
 |---|---|---|

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="152" viewBox="0 0 600 152" role="img" aria-labelledby="title desc">
+<title id="title">台車へ近づく6セルの拡大</title><desc id="desc">障害物から1.0、0.8、0.6、0.4、0.2、0 mの順に、内部コストは0、41、75、138、253、254となる。</desc>
+<defs><pattern id="unknown" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#e2e6eb"/><path d="M-2 2L2-2M0 8L8 0M6 10L10 6" stroke="#9ba7b6" stroke-width="1.2"/></pattern></defs>
+<rect width="600" height="152" fill="#f5f7fa" rx="10"/>
+<rect x="12" y="16" width="96" height="78" fill="#ffffff" stroke="#b8c3cf"/>
+<text x="60" y="65" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="bold" fill="#19283b">0</text>
+<text x="60" y="119" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#33445a">1.0 m</text>
+<rect x="108" y="16" width="96" height="78" fill="#fcdfa5" stroke="#b8c3cf"/>
+<text x="156" y="65" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="bold" fill="#19283b">41</text>
+<text x="156" y="119" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#33445a">0.8 m</text>
+<rect x="204" y="16" width="96" height="78" fill="#f9cf91" stroke="#b8c3cf"/>
+<text x="252" y="65" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="bold" fill="#19283b">75</text>
+<text x="252" y="119" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#33445a">0.6 m</text>
+<rect x="300" y="16" width="96" height="78" fill="#f4b26d" stroke="#b8c3cf"/>
+<text x="348" y="65" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="bold" fill="#19283b">138</text>
+<text x="348" y="119" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#33445a">0.4 m</text>
+<rect x="396" y="16" width="96" height="78" fill="#d64d64" stroke="#b8c3cf"/>
+<text x="444" y="65" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="bold" fill="#ffffff">253</text>
+<text x="444" y="119" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#33445a">0.2 m</text>
+<rect x="492" y="16" width="96" height="78" fill="#25364b" stroke="#b8c3cf"/>
+<text x="540" y="65" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="bold" fill="#ffffff">254</text>
+<text x="540" y="119" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#33445a">0.0 m</text>
+<path d="M20 139H576M568 133L577 139L568 145" fill="none" stroke="#33445a" stroke-width="2"/>
+</svg>
