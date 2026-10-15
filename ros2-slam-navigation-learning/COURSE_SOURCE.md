@@ -2,7 +2,8 @@
 
 対象環境：Ubuntu 22.04 / ROS 2 Humble  
 情報確認日：2026-09-17<br>
-オドメトリ・TF章更新日：2026-10-13
+オドメトリ・TF章更新日：2026-10-13<br>
+コストマップ章更新日：2026-10-15
 
 ## この教材の目的
 
@@ -849,7 +850,7 @@ TF計算は時刻付きで行い、最新値だけを単純に引き算しない
 
 ---
 
-## 6。Nav2へつなぐ仕組み
+## 6。Nav2へつなぐ仕組みとコストマップ {#6nav2へつなぐ仕組み .costmap-chapter}
 
 Nav2が必要とするものを、接続の観点で整理する。
 
@@ -865,7 +866,7 @@ Nav2が必要とするものを、接続の観点で整理する。
 
 Nav2からロボット側へは、通常、`/cmd_vel`が出る。
 
-### 6.1 車輪ロボット
+### 6.1 車輪ロボット {#61-車輪ロボット}
 
 ```mermaid
 flowchart LR
@@ -875,7 +876,7 @@ flowchart LR
     W --> E["Encoder Odom"]
 ```
 
-### 6.2 四足歩行・ヒューマノイド
+### 6.2 四足歩行・ヒューマノイド {#62-四足歩行ヒューマノイド}
 
 四足歩行ロボットやヒューマノイドでも、Nav2から見た基本インタフェースは同じにできる。
 
@@ -894,7 +895,7 @@ flowchart LR
 - 胴体が上下・傾斜しても、Nav2用に`base_footprint`を定義する
 - 転倒、足場、段差、階段はNav2の通常の2D衝突回避とは別に扱う
 
-### 6.3 Mapping中とLocalization中のTF所有者
+### 6.3 Mapping中とLocalization中のTF所有者 {#63-mapping中とlocalization中のtf所有者}
 
 | 運用状態 | `map -> odom` | `odom -> base_link` |
 |---|---|---|
@@ -905,6 +906,238 @@ flowchart LR
 | VSLAM＋Nav2 | VSLAM/Adapter | VO/VIOまたはEKF |
 
 同じTFを2ノードが同時にPublishしないことが最重要である。
+
+### 6.4 コストマップとは何か {#costmap-guide}
+
+**コストマップは、空間を格子状に区切り、「ここを通れるか」「どの程度避けたいか」を各セルの数値で表した、経路・速度計算用の地図である。** コストマップ自体がハンドルを切ったり、速度指令を出したりするわけではない。PlannerとControllerがその値を評価して動作を決める。
+
+まず、これまで登場した地図を区別する。
+
+| 情報 | 答える問い | 主な利用先 |
+|---|---|---|
+| Localization用の3D点群地図 | 観測した形状は地図上のどこに一致するか | `lidar_localization_ros2`などの自己位置推定 |
+| 保存済み2D占有地図 `/map` | 地図作成時に、どこが壁・空き・未観測だったか | StaticLayer、AMCLなど |
+| コストマップ | 今の情報と機体の大きさを考えると、どこを通りたいか・避けたいか | Nav2のPlanner、Controller |
+
+LIOが内部で使う「局所点群地図」は、点群を照合して連続した移動を推定するための地図である。Nav2のLocal Costmapは移動先を評価するための格子であり、同じ「局所」という名前でも用途とデータ構造が異なる。
+
+保存済み地図にない台車や人も、現在のセンサー観測からコストマップへ追加できる。逆に、壁の周りには物体がないセルでも高いコストを付け、壁際を避ける経路を選びやすくする。したがって、**占有地図をそのまま表示したものがコストマップ、というわけではない。**
+
+Nav2内部の代表的なコスト値は次の通りである。
+
+| 内部値 | 意味 | 読み方 |
+|---|---|---|
+| `0` | Free space | このセルに障害物コストが付いていない |
+| `1～252` | 距離などに応じたコスト | 数値が高い場所を避けるよう、経路・軌道の評価へ使う |
+| `253` | Inscribed inflated obstacle | 障害物から機体の内接半径以内。機体中心を置くと衝突する領域 |
+| `254` | Lethal obstacle | 障害物があるセル |
+| `255` | No information | 未知。単に「254より危険」という大小比較では扱わない |
+
+これは内部の8 bit表現である。`nav_msgs/msg/OccupancyGrid`の`-1`や`0～100`とは数値体系が違い、RViz表示用Topicでは変換される。色も表示設定によるため、色だけで値を断定しない。`0`も「実世界で安全が証明された」という意味ではなく、未観測領域をFreeとして初期化する設定なら未確認の空間を含み得る。
+
+以下は、[大域と局所の役割](#costmap-global-local) → [レイヤーの構成](#costmap-layers) → [障害物の登録・消去](#costmap-observations) → [機体形状と余裕幅](#costmap-footprint) → [回避の処理ループ](#costmap-control-loop) → [通路の具体例](#costmap-corridor)の順に読む。
+
+### 6.5 大局・大域と局所は何が違うか {#costmap-global-local}
+
+「大局的に考える」ときの大局を、ここではNav2の用語に合わせて**大域（Global）**と呼ぶ。大域は「目的地まで、どの通路を選ぶか」、局所（Local）は「直近で、どう動けばその経路へ進めるか」を担う。
+
+| 観点 | Global Costmap：大域 | Local Costmap：局所 |
+|---|---|---|
+| 主な問い | 目的地までどこを通るか | 今の周囲で、次にどう動くか |
+| 典型的な範囲 | 保存地図の全体。目的地までの経路を含む | 機体周囲の数m。例：8 m × 8 m |
+| 典型的な基準座標 | `map` | `odom` |
+| 地図の持ち方 | 通常は固定範囲 | 通常は`rolling_window: true`で機体に追従する範囲 |
+| 主な情報 | 保存地図＋現在の障害物＋周囲のコスト | 現在・最近の障害物＋周囲のコスト。必要なら保存地図も加える |
+| 主な利用者 | Planner Server内の経路計画プラグイン | Controller Server内の経路追従・局所制御プラグイン |
+| 利用者が出すもの | `nav_msgs/msg/Path`の経路 | 通常は`/cmd_vel`の速度指令 |
+
+これは典型構成であり、GlobalとLocalでフレーム、範囲、解像度が必ずこの組み合わせに固定されるわけではない。パラメータの`global_frame`は「そのコストマップ全体の基準座標」という意味なので、**Local Costmapの`global_frame: odom`も正しい設定**である。
+
+Local Costmapの窓はロボットとともに移動するが、`odom`の座標軸がロボットとともに回転するわけではない。ロボットが前進すると窓の原点が移り、新しく入った範囲を更新し、範囲外の情報は保持しなくなる。8 m四方を機体中心に置けば、前方に使える長さは概ね4 mである。センサー有効距離と合わせ、停止距離やControllerの予測範囲を収める必要がある。
+
+第2章とのつながりは、Localを`odom`にすることで近傍観測を連続した座標で蓄積し、遠方のmap上の経路はTFで局所制御側へ変換する点にある。地図補正が入れば経路との位置関係は変わり得るが、補正だけでodom上の障害物を飛ばさずに扱える。
+
+**Global＝静的障害物だけ、Local＝動的障害物だけ、ではない。** Globalにもセンサー障害物を入れられるし、Localにも壁のような静止物体が入る。2枚の地図は、主に計画の範囲と利用目的を分けている。Localの内容がGlobalへ自動コピーされるわけでもなく、必要な観測源をそれぞれのレイヤーに設定する。
+
+### 6.6 レイヤーを重ねて1枚のコストマップを作る {#costmap-layers}
+
+Nav2の標準的なコストマップは、複数のレイヤープラグインが共通の格子へ情報を反映する構成である。
+
+| レイヤー | 入力と仕事 | 例 |
+|---|---|---|
+| `StaticLayer` | `/map`などの占有地図を読み込む | 保存地図の壁・固定設備 |
+| `ObstacleLayer` | LaserScanやPointCloud2を使い、2D格子へ障害物を登録・消去する | 2D LiDARで検出した人・台車 |
+| `VoxelLayer` | 高さ方向を含むボクセルで観測を扱い、2Dコストへ投影する | 3D点群の机・柱・張り出し |
+| STVL | 疎な3Dボクセルと時間減衰・センサー視野で観測を管理し、2Dへ投影する | 移動する人の古い点が残る問題への対処 |
+| `InflationLayer` | 障害物の周囲へ距離に応じたコストを広げる | 壁との余裕、通路中央へ寄せる傾向 |
+
+```mermaid
+flowchart TB
+    M["保存済み2D地図"] --> S["StaticLayer"]
+    OBS["LaserScan / PointCloud2<br/>観測時刻のTFで変換"] --> O["Obstacle / Voxel / STVL<br/>用途に応じて選ぶ"]
+    S --> C["共通の格子へ反映"]
+    O --> C
+    C --> I["InflationLayer<br/>障害物の周囲にコスト"]
+    I --> G["完成したコストマップ"]
+```
+
+図は1枚のコストマップを作る概念図である。GlobalとLocalがそれぞれ独立に必要なレイヤーを持つ。典型的には`plugins: [static_layer, obstacle_layer, inflation_layer]`のように障害物を反映してからInflationを適用する。3D入力ならObstacleの代わりにVoxelやSTVLを選べる。STVLの実設定は第11章を参照する。
+
+重ね方は単純な足し算とは限らない。例えばObstacleLayerの`combination_method: 1`は、未知値を特別扱いしつつ高いコストを採る方式である。StaticLayerに壁が残っていれば、センサー側のレイヤーだけをFreeへ戻しても、合成後の壁は消えない。消えない障害物を調べるときは、どのレイヤーが値を供給しているかを確認する。
+
+VoxelやSTVLが内部で3Dを扱っても、通常のNav2が参照する完成結果は2Dである。床を障害物にせず、機体が衝突する高さの障害物を残す前処理が必要であり、階段や足の着地点が自動的に計画できるわけではない。
+
+### 6.7 観測から障害物を登録し、消すまで {#costmap-observations}
+
+例えばLiDARの前方2 mに台車が見えたとき、標準ObstacleLayerでは概ね次の処理になる。
+
+1. センサーの`header.frame_id`と`header.stamp`を読む。
+2. **観測時刻のTF**で点とセンサー原点を対象コストマップの座標へ変換する。Localなら`odom`、Globalなら`map`が典型である。
+3. 高さ・距離などの採用条件を満たす反射点のセルを障害物として登録する。これが**Marking**である。
+4. センサー原点から有効な反射点へ至る光線上の空間を、障害物がない観測として更新する。これがRaytraceによる**Clearing**である。実装ではClearing後にMarkingを行い、終端の物体を残す。
+5. レイヤーを合成し、障害物周囲のInflationも更新する。
+
+```text
+前回：LiDAR ───── 台車（2 m）        壁（4 m）
+今回：LiDAR ──────────────── 壁（4 m）
+                     ↑
+       台車が移動し、この場所を光線が通れば消去できる
+```
+
+**点が届かなくなったことと、空いていると観測できたことは異なる。** 遮蔽で台車が見えない、センサーが別の方向を向いた、点群Topicが止まった、という理由だけでは、その場所を安全なFreeと判断できない。通常のObstacleLayerは観測されない障害物を時間だけで自動消去しない。`observation_persistence`も観測バッファの保持時間であり、格子に書いた障害物の寿命そのものではない。
+
+`marking`と`clearing`、`obstacle_max_range`と`raytrace_max_range`を区別し、無限遠LaserScanを使う場合の`inf_is_valid`もセンサーに合わせる。PointCloud2に「点がない方向」の光線が自動生成されるとは限らない。STVLのDecayは別の消去モデルであり、消えたセルを実際に安全と確認したことにはならない。
+
+未知領域は`track_unknown_space`で保持するかを決め、Planner側の`allow_unknown`などで通過を認めるかを決める。両者は別の設定である。探索のため未知へ進む構成と、既知の走行可能域だけを使う構成を混同しない。
+
+### 6.8 FootprintとInflation：機体の大きさと余裕をどう表すか {#costmap-footprint}
+
+経路上の点だけが壁に重ならなくても、ロボットの角や脚が接触する場合がある。`footprint`は機体基準の多角形、`robot_radius`は円形近似であり、GlobalとLocalの両方に実際の機体形状を設定する。`footprint_padding`はその形状に加える余裕である。歩行ロボットなら、通常の脚の張り出しも含める。
+
+Inflationは、障害物の周りに「近づくほど避けたい」という勾配を作る。機体中心からFootprint境界までの最短距離を内接半径`r_inscribed`とすると、標準Inflationの概念は次のようになる。
+
+```text
+障害物からの距離 d
+  d = 0                         : 254（障害物）
+  0 < d <= r_inscribed           : 253（内接半径の衝突領域）
+  r_inscribed < d <= inflation_radius:
+    約 252 × exp(-cost_scaling_factor × (d - r_inscribed))
+  inflation_radius の外側        : この障害物による膨張コストは付けない
+```
+
+上の図式は`inflation_radius`が内接半径以上の場合であり、実際には格子の距離と整数値で計算する。`inflation_radius`はコストを広げる距離、`cost_scaling_factor`は減衰の速さであり、**後者を大きくすると、障害物から離れたときにコストが速く下がる。**
+
+例えば半径0.30 mの円形ロボットで`inflation_radius: 0.60`なら、中心が障害物から0.30 m以内に来る領域と、0.30～0.60 mの「近づくほど高コストな領域」を区別する。0.60 m全域が一律に通行禁止になるわけではない。コストの評価方法によっては、この勾配の中にも経路が入る。
+
+| 調整対象 | 役割 | 誤解しやすい点 |
+|---|---|---|
+| Footprint / 半径 | 機体が占める範囲 | 小さく偽ると、経路が通っても実機が接触する |
+| Padding | 形状へ追加する余裕 | 単位はm。必要以上に増やすと通路を塞ぐ |
+| Inflation | 近づきたくない度合い | 柔らかいコストの勾配を含み、全域が禁止域ではない |
+| Planner / Controllerの衝突判定・重み | 形状とコストをどう評価するか | 使うプラグインやCriticによって、中心セル評価と多角形評価などが異なる |
+
+細長い機体では、内接半径だけで旋回時の角の衝突を判定できない。機体形状に対応したPlanner・Controllerの衝突判定を選ぶ。十分な幅の通路では左右の壁からの勾配により中央へ寄りやすくなるが、中央通行を常に保証する設定ではない。
+
+`resolution: 0.05`なら1セルは5 cmである。細かくすると細い障害物や狭い通路を表現しやすい一方、同じ面積で解像度を半分にするとセル数は4倍になる。センサー精度以上に細かくすれば正確になる、とは限らない。
+
+### 6.9 コストマップから障害物回避へ至る処理ループ {#costmap-control-loop}
+
+典型的なNav2では、Planner ServerがGlobal Costmapを、Controller ServerがLocal Costmapを管理する。内部のプラグインが更新済みのコストマップを参照する。通常、ControllerがRViz向けの`/local_costmap/costmap`を毎回購読してから制御する構成ではない。
+
+```mermaid
+flowchart TB
+    MAP["保存地図"] --> GC["Global Costmap<br/>通常はmap基準"]
+    SENSOR["現在の障害物観測"] --> GC
+    SENSOR --> LC["Local Costmap<br/>通常はodom基準・移動窓"]
+    GOAL["目的地＋map上の現在姿勢"] --> P["Planner<br/>大域経路を計算・再計画"]
+    GC --> P
+    P --> PATH["Path<br/>どの通路を通るか"]
+    PATH --> C["Controller<br/>経路を局所座標へ変換し<br/>直近の動きを評価"]
+    LC --> C
+    ODOM["odom上の姿勢＋実測・推定速度"] --> C
+    C --> V["速度指令 cmd_vel"]
+    V --> R["ロボット制御・移動"]
+    R --> SENSOR
+    R --> ODOM
+```
+
+1. **観測と更新：** センサーからの障害物を各Costmapへ反映する。Localizationの新しい推定結果が来るたびだけ更新するわけではない。
+2. **大域計画：** PlannerがGlobal Costmap上で、現在姿勢から目的地までの経路を求める。NavFnやSmacなど、選択した方式で距離・コスト・機体の移動制約を評価する。
+3. **局所制御：** Controllerが経路、現在姿勢、現在速度、Local Costmapを使い、次の速度指令を求める。遠くの目的地が局所地図の外でも、大域経路の近傍部分を追従できる。
+4. **実行と繰り返し：** ロボットが指令を実行し、次のセンサー観測とオドメトリが返る。再計画のタイミングはBehavior Tree（BT）などが制御する。
+
+回避方法はControllerで異なる。**DWB**なら候補速度を短時間先まで進めた軌道を評価し、衝突する候補を除き、経路追従や障害物コストなどから速度を選ぶ。**MPPI**なら多数の予測軌道を評価して制御列を改善する。**Regulated Pure Pursuit（RPP）**は経路追従、減速、前方の衝突確認が中心であり、障害物の左右を探索して新しい迂回路を作る役割は主に再計画へ依存する。「Local Costmapがあれば、どのControllerでも自動で横へ回り込む」とは限らない。
+
+動ける候補がなければ、そのまま衝突する指令を選ばせるのではなく、停止や制御失敗として扱い、BTの待機・再計画・Recoveryへ進む。実際の動作はプラグイン、失敗の許容時間、BTに依存する。CostmapのClearは記憶の消去であり、現実の障害物を取り除く操作ではない。
+
+通常のコストマップは現在・最近の占有を表す。人の未来位置を予測して先回りする機能まで、この仕組みだけで得られるわけではない。必要なら追跡・予測を扱う追加機能と組み合わせる。計画用のCostmapと、遅延・センサー停止も扱う実機の停止系の関係は第11章で扱う。
+
+### 6.10 時系列の具体例：通路に台車が現れたら {#costmap-corridor}
+
+目的地へ向かう通路Aと、少し遠回りになる通路Bがある。保存地図ではどちらも通れるが、走行中にAへ台車が置かれたとする。
+
+| 段階 | コストマップと計画の状態 | ロボットの動作 |
+|---|---|---|
+| 出発前 | GlobalでAを通る経路を作る。Localには近傍の壁がある | Aへ向かう |
+| 台車を観測 | 次のLocal更新で台車をMarkingし周囲へInflation | 更新後の情報を使うControllerが減速・回避・停止を判断する |
+| 横に十分な空間がある | Localに機体が通れる軌道がある | 対応するControllerなら局所的に回り込み、元の経路へ戻れる |
+| 通路幅いっぱいに塞がれた | Local内には通過可能な軌道がない | 無理に抜けず停止。別通路の選択には大域再計画が必要 |
+| Globalにも台車が反映された | 再計画でAの閉塞を評価でき、Bの経路が得られる | 新しい経路に沿ってBへ向かう |
+| 台車が移動した | 再観測によるClearingや設定した減衰で各地図を更新 | 次の再計画でAが候補へ戻り得る |
+
+**Localにだけ台車を入れ、Globalを保存地図だけにしていると、再計画してもAを選び続ける場合がある。** Global側にも適切な障害物レイヤーを設定するなど、閉塞を大域計画へ伝える仕組みが必要である。また、観測していない遠くの閉塞をGlobalが自動的に知るわけではない。
+
+「局所で避けられる物体」と「別の通路を選ぶ必要がある閉塞」は、同じ障害物でも機体幅、通路幅、Controllerによって変わる。局所の短い予測範囲だけで建物全体の迂回を解こうとしない。
+
+### 6.11 更新周期とPublish周期を分けて読む {#costmap-timing}
+
+次の数値は処理を理解するための設定例であり、Nav2の固定値や実測値ではない。
+
+| ループ | 例 | 何が起きるか |
+|---|---|---|
+| センサー観測 | 10 Hz：100 msごと | 新しい点群・スキャンが届く |
+| Local `update_frequency` | 10 Hz：100 msごと | 観測を取り込み、内部の局所格子を更新する |
+| Global `update_frequency` | 2 Hz：500 msごと | 大域側のレイヤーを更新する |
+| Costmap `publish_frequency` | Local 5 Hz、Global 1 Hz | 可視化・外部利用向けに格子をPublishする |
+| Controller `controller_frequency` | 20 Hz：50 msごと | 利用可能な姿勢・速度・局所格子から指令を計算する |
+| BTからの大域再計画 | 1 Hz：1秒ごと | 更新済みGlobalを使って経路を求め直す |
+
+これらは非同期である。例えば10.00秒に観測し、10.03秒に点群が届き、10.10秒のLocal更新で反映されれば、10.15秒の制御はその障害物を利用できる。一方、10.05秒の制御時点では、その観測はまだ格子に入っていない。表の周期だけで反応時間が保証されるわけではなく、TF待ち・処理時間・実行遅延も加わる。
+
+`publish_frequency`を上げるだけでは内部の障害物更新は速くならない。また、20 Hzで制御しても10 Hzの観測が20 Hzに増えるわけではなく、複数回の制御が同じ観測に基づくこともある。地図の更新が有効か、センサーが新鮮かの判定も必要である。
+
+Humbleの標準的な再計画BTには`RateController`がある。**`planner_server.expected_planner_frequency`は計画時間の監視用であり、それ自体が周期的な計画要求を発行するタイマーではない。** 実際の周期は使用中のBTも確認する。
+
+### 6.12 RVizと設定で仕組みを確認する {#costmap-checks}
+
+RVizでは、保存地図、Global Costmap、Local Costmap、Footprint、経路、元のScan/PointCloud2を重ね、必要に応じて表示を切り替える。まずLocalを`odom`固定で観察し、近傍物体との関係が安定するかを見てから、`map`固定で大域経路との関係を確認すると分かりやすい。
+
+```bash
+# ノード名はnamespaceを含む実際の構成で確認する
+ros2 node list
+ros2 param get /global_costmap/global_costmap global_frame
+ros2 param get /global_costmap/global_costmap plugins
+ros2 param get /local_costmap/local_costmap global_frame
+ros2 param get /local_costmap/local_costmap rolling_window
+ros2 param get /local_costmap/local_costmap update_frequency
+ros2 param get /local_costmap/local_costmap publish_frequency
+
+# ここで測るのはTopic配信。内部更新の実行周期そのものではない
+ros2 topic hz /local_costmap/costmap
+ros2 topic hz /global_costmap/costmap
+```
+
+差分Publishの構成では`costmap_updates`も確認する。設定値が10 Hzでも、処理負荷で内部更新が遅れる場合はログや計測で実効周期を調べる。
+
+| 観察・試験 | 確認したいこと |
+|---|---|
+| 保存地図にない箱を置く | 元の観測 → Localの障害物 → 周囲の膨張コスト、の順に見えるか |
+| 箱をどけ、背後の壁を観測する | 適切なClearingで箱の痕跡が消えるか。残る場合、どのレイヤーが供給しているか |
+| ロボットをゆっくり動かす | Localの窓が移っても静止した壁がodom上で安定するか |
+| 通路全体を塞ぐシミュレーション | Localで停止でき、Globalへ閉塞が入り、再計画で別通路を選べるか |
+| 狭い通路と旋回を確認する | Footprintと選択した衝突判定が実機形状を反映するか |
+
+**説明できれば理解できたこと：** 地図にない箱はどのレイヤーが登録するか。箱の周りの色は何を意味するか。Localで塞がってもGlobal経路が変わらないのはなぜか。箱が観測されなくなっただけで消してよいか。この4点を、観測・コスト・計画・指令の順に説明する。
 
 ---
 
@@ -1494,7 +1727,7 @@ local_costmap:
 
 STVLの追加依存関係をまだ実機イメージへ固定できない、計算資源が不足する、または静的障害物だけでBringupを進めたい場合は、標準`nav2_costmap_2d::VoxelLayer`をFallbackとして使う。その場合も`marking`と`clearing`を分けて確認し、点群断をCostmapのClear扱いにはしない。まず標準LayerでTF・点群・Footprintを検証し、同じBagでSTVLへ差し替えると原因を切り分けやすい。
 
-Global Costmapには、保存済み2D占有地図を`StaticLayer`で読み込む。3D地図から2D地図を生成するときは、床からロボット全高までを投影し、通行不能な穴や段差を別途反映する。動的障害物の回避はLocal Costmap、長期的な通行可否はGlobal Costmapと役割を分ける。
+Global Costmapには、保存済み2D占有地図を`StaticLayer`で読み込む。3D地図から2D地図を生成するときは、床からロボット全高までを投影し、通行不能な穴や段差を別途反映する。Local Costmapは直近の速度判断、Global Costmapは目的地までの通路選択へ使う。通路を塞ぐ台車などを再計画へ反映するには、Global側にも適切な障害物レイヤーを設ける。Localの障害物が自動的にGlobalへコピーされるわけではない。レイヤーの意味と回避の処理は[第6章](#costmap-guide)を参照する。
 
 ### 11.4 Nav2から歩容制御へ接続する
 
@@ -1865,6 +2098,11 @@ ros2 bag record -o slam_debug \
 - [Nav2：Setting Up Transformations](https://docs.nav2.org/setup_guides/transformation/setup_transforms.html)
 - [Nav2：Navigation Concepts](https://docs.nav2.org/concepts/index.html)
 - [Nav2：Costmap 2D](https://docs.nav2.org/configuration/packages/configuring-costmaps.html)
+- [Nav2 Humble：内部コスト値の定義](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/include/nav2_costmap_2d/cost_values.hpp)
+- [Nav2 Humble：Inflationの距離とコスト計算](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/include/nav2_costmap_2d/inflation_layer.hpp)
+- [Nav2 Humble：ObstacleLayerのMarking・Clearing](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/plugins/obstacle_layer.cpp)
+- [Nav2 Humble：Global/Local Costmapの設定例](https://github.com/ros-navigation/navigation2/blob/humble/nav2_bringup/params/nav2_params.yaml)
+- [Nav2 Humble：再計画とRecoveryのBehavior Tree](https://github.com/ros-navigation/navigation2/blob/humble/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml)
 - [Spatio-Temporal Voxel Layer（STVL）](https://github.com/SteveMacenski/spatio_temporal_voxel_layer)
 - [Nav2：Smoothing Odometry using robot_localization](https://docs.nav2.org/setup_guides/odom/setup_robot_localization.html)
 - [Nav2：Using VIO to Augment Robot Odometry](https://docs.nav2.org/tutorials/docs/integrating_vio.html)

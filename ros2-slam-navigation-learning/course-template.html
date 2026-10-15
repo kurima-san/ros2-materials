@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- BUILD: ros2-slam-navigation-learning-v1.3.0-20261013 -->
+<!-- BUILD: ros2-slam-navigation-learning-v1.4.0-20261015 -->
 <html lang="ja">
 <head>
   <meta charset="utf-8">
@@ -184,7 +184,7 @@ $body$
             <p class="step-label">KNOWLEDGE CHECK</p>
             <h2>最後に接続の要点を確認する</h2>
           </div>
-          <span class="time-chip">全6問</span>
+          <span class="time-chip">全9問</span>
         </div>
 
         <div class="quiz" data-answer="b" data-explanation="IMU単独の加速度積分では誤差が急速に蓄積します。LiDAR＋IMUのLIOやCamera＋IMUのVIOとして使うのが基本です。">
@@ -239,11 +239,37 @@ $body$
           <button class="quiz-check" type="button">回答を確認</button>
           <p class="quiz-result" aria-live="polite"></p>
         </div>
+        <div class="quiz" data-answer="b" data-explanation="Localの観測はGlobalへ自動コピーされません。別通路への再計画には、Global側にも閉塞を反映する仕組みと、BTなどからの再計画要求が必要です。">
+          <p class="quiz-number">QUESTION 7</p>
+          <h3>Localで通路の閉塞を検出したが、Globalが保存地図だけを使っている。再計画すれば必ず別通路を選ぶ？</h3>
+          <label><input type="radio" name="quiz-7" value="a"> はい。Localの障害物は自動的にGlobalへ反映される</label>
+          <label><input type="radio" name="quiz-7" value="b"> いいえ。Globalにも閉塞が伝わらなければ、同じ通路を選び得る</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
+
+        <div class="quiz" data-answer="a" data-explanation="Inflationには衝突領域と距離に応じたコスト勾配があります。inflation_radius全体が一律の禁止領域ではなく、実際の形状とPlanner・Controllerの衝突判定も必要です。">
+          <p class="quiz-number">QUESTION 8</p>
+          <h3><code>inflation_radius: 0.60</code>は、障害物から0.60 m以内をすべて通行禁止にする設定？</h3>
+          <label><input type="radio" name="quiz-8" value="a"> いいえ。衝突領域の外にも、近づくほど高いコストを付ける範囲がある</label>
+          <label><input type="radio" name="quiz-8" value="b"> はい。半径内は機体形状によらず一律に禁止される</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
+
+        <div class="quiz" data-answer="b" data-explanation="観測が途切れたことは空き領域の確認ではありません。標準ObstacleLayerでは有効な光線によるClearingなどを確認します。STVLの減衰も実世界の安全を証明するものではありません。">
+          <p class="quiz-number">QUESTION 9</p>
+          <h3>障害物の点が届かなくなった。直ちにそのセルをFreeと考えてよい？</h3>
+          <label><input type="radio" name="quiz-9" value="a"> はい。点がないことは物体がないことを意味する</label>
+          <label><input type="radio" name="quiz-9" value="b"> いいえ。遮蔽やセンサー停止と、空きを観測した場合は区別する</label>
+          <button class="quiz-check" type="button">回答を確認</button>
+          <p class="quiz-result" aria-live="polite"></p>
+        </div>
       </section>
 
       <footer class="course-footer">
         <p>ROS 2 SLAM・Localization・Navigation2 学習教材</p>
-        <p>対象：Ubuntu 22.04 / ROS 2 Humble · 情報確認日：2026-09-17 · オドメトリ・TF章更新：2026-10-13</p>
+        <p>対象：Ubuntu 22.04 / ROS 2 Humble · 情報確認日：2026-09-17 · オドメトリ・TF章更新：2026-10-13 · コストマップ章更新：2026-10-15</p>
       </footer>
     </main>
   </div>

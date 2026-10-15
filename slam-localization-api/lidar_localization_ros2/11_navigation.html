@@ -170,6 +170,48 @@ ros2 run lidar_localization_ros2 generate_occupancy_map_from_pcd.py \
 必要ならPGM/PNGを編集する。</div>
 </section>
 
+<section class="page" id="costmap-flow"><h2>11.2.1 大域・局所コストマップと障害物回避</h2>
+<p><strong>コストマップは、セルごとに通行可否や避けたい度合いを付けた、計画用の格子地図である。</strong>
+保存済み2D地図に現在の障害物を重ね、機体の大きさや壁との余裕を扱うためのコストを加える。
+自己位置推定用の3D PCDとも、保存した2D占有地図そのものとも役割が異なる。</p>
+
+<table>
+<tr><th>観点</th><th>Global Costmap（大域・大局）</th><th>Local Costmap（局所）</th></tr>
+<tr><td>用途</td><td>目的地まで、どの通路を選ぶか</td><td>直近で、どう動くか</td></tr>
+<tr><td>典型構成</td><td><code>map</code>基準、保存地図全体</td><td><code>odom</code>基準、機体に追従する数mの窓</td></tr>
+<tr><td>利用者と出力</td><td>Plannerが経路を作る</td><td>Controllerが経路・姿勢・速度と合わせて速度指令を作る</td></tr>
+<tr><td>障害物</td><td>保存地図に加え、観測した閉塞も取り込める</td><td>近傍の壁・人・台車などを取り込む</td></tr>
+</table>
+<p>Localの<code>global_frame: odom</code>は「この格子の基準座標はodom」という意味である。
+移動窓は機体に追従するが、odomの軸が機体と一緒に回るわけではない。
+Global＝静的、Local＝動的という区別でもない。両方に必要な観測源を設定する。</p>
+
+<h3>観測をコストへ変える</h3>
+<ol>
+<li><code>StaticLayer</code>が保存地図の壁や空き領域を読み込む。</li>
+<li><code>ObstacleLayer</code>、<code>VoxelLayer</code>、STVLなどが、観測時刻のTFで変換したScan・点群から障害物を登録する（Marking）。</li>
+<li>有効な観測光線が通った空間を消去する（Clearing）。STVLでは時間減衰なども使う。単なる点群停止は「空いている」という観測ではない。</li>
+<li><code>InflationLayer</code>が障害物周囲へ距離に応じたコストを付け、壁から余裕を取る計画を選びやすくする。</li>
+</ol>
+<p><code>footprint</code>または<code>robot_radius</code>は機体形状、<code>inflation_radius</code>はコストを広げる距離である。
+膨張範囲すべてが一律に通行禁止になるわけではない。内接半径だけでは細長い機体の角の衝突を判断できないため、
+Planner・Controllerの衝突判定も機体形状に合わせる。3D点群を使っても、標準Nav2へ渡るコストマップは通常2Dである。</p>
+
+<h3>台車を避ける場合と、別通路へ回る場合</h3>
+<p>経路上に台車が現れたら、Localの更新後、Controllerが減速・回避・停止を判断する。
+DWBやMPPIでは近傍の候補軌道を評価できるが、RPPは経路追従と減速・衝突確認が中心で、迂回経路は主に再計画へ依存する。
+通路全体が塞がれば局所回避だけでは抜けられず、Globalにも閉塞を反映して別通路の経路を求める必要がある。</p>
+<p><strong>Localにだけ台車を入れても、その情報がGlobalへ自動コピーされることはない。</strong>
+Globalが保存地図だけなら、再計画しても塞がれた通路を選び続ける場合がある。
+また、未知の遠方障害物をGlobalが自動的に知るわけではない。</p>
+
+<p><code>update_frequency</code>は内部格子の更新、<code>publish_frequency</code>は可視化・外部利用向け配信の周期である。
+標準的なControllerは内部のLocal Costmapを参照するので、RViz用Topicを速く配信するだけでは障害物への反応は速くならない。
+センサー、Costmap、Controller、BTによる再計画は別々のループとして確認する。</p>
+<div class="note">値の定義、レイヤー合成、FootprintとInflationの数値例、観測から指令までの時系列、RVizでの確認は
+<a href="../../ros2-slam-navigation-learning/index.html#costmap-guide">学習教材 第6章：コストマップ</a>を参照。</div>
+</section>
+
 <section class="page"><h2>11.3 Nav2インストール</h2>
 <pre><code>source /opt/ros/humble/setup.bash
 
