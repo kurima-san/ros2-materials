@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- BUILD: ros2-slam-navigation-learning-v1.6.0-20261018 -->
+<!-- BUILD: ros2-slam-navigation-learning-v1.6.1-20261018 -->
 <html lang="ja">
 <head>
   <meta charset="utf-8">
@@ -2428,6 +2428,113 @@ m全域が一律に通行禁止になるわけではない。コストの評価�
 <p>細長い機体では、内接半径だけで旋回時の角の衝突を判定できない。機体形状に対応したPlanner・Controllerの衝突判定を選ぶ。十分な幅の通路では左右の壁からの勾配により中央へ寄りやすくなるが、中央通行を常に保証する設定ではない。</p>
 <p><code>resolution: 0.05</code>なら1セルは5
 cmである。細かくすると細い障害物や狭い通路を表現しやすい一方、同じ面積で解像度を半分にするとセル数は4倍になる。センサー精度以上に細かくすれば正確になる、とは限らない。</p>
+<section id="costmap-radius-example" class="level4">
+<h4>数値例：robot_radius 0.45 m・inflation_radius 0.80 m・係数3.0</h4>
+<p>3つの役割を、<strong>半径0.45 mの円形ロボット、追加のFootprint
+Paddingなし</strong>という条件で確認する。この数値例は、後の半径0.30
+mの比較図とは別の条件である。</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>パラメータ</th>
+<th>意味</th>
+<th>この例での読み方</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>robot_radius: 0.45</code></td>
+<td>円形近似した機体の半径、m</td>
+<td>機体の直径は<strong>0.90 m</strong></td>
+</tr>
+<tr class="even">
+<td><code>inflation_radius: 0.80</code></td>
+<td>障害物からコストを広げる距離、m</td>
+<td>障害物から<strong>0.80
+mまで</strong>。全域が通行禁止になるわけではない</td>
+</tr>
+<tr class="odd">
+<td><code>cost_scaling_factor: 3.0</code></td>
+<td>距離に対してコストを下げる速さ</td>
+<td>大きくすると急に下がり、小さくすると遠くまで高めのコストが残る</td>
+</tr>
+</tbody>
+</table>
+<figure class="costmap-visual" id="costmap-radius-parameters-picture">
+<figcaption>
+<strong>機体の大きさ・膨張範囲・コストの減衰を分けて読む</strong>
+</figcaption>
+<img src="assets/figures/costmap-radius-example-three-parameters.svg" width="1400" height="510" alt="左は半径0.45 m、直径0.90 mの青い円。中央は壁から0.45 mまでが接触・衝突の領域、その外側0.80 mまでが柔らかいコストの帯。右は係数3.0のコスト曲線と、より急に下がる係数6.0の比較。">
+<p>
+色は「ロボットの<strong>中心をその位置に置く候補</strong>」の評価を示す。図の0.80
+mには、機体半径に対応する0.45
+mの範囲も含まれる。接触・衝突領域の外側にある帯の幅は、<code>0.80 − 0.45
+= 0.35 m</code>である。
+</p>
+</figure>
+<p>壁からロボット中心までの距離を<code>d</code>とすると、この条件では次のように読む。</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>中心までの距離</th>
+<th>状態</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>0 &lt; d &lt;= 0.45 m</code></td>
+<td>機体が壁に接触・衝突する範囲。理想化した円形モデルではコスト253に相当する</td>
+</tr>
+<tr class="even">
+<td><code>0.45 &lt; d &lt;= 0.80 m</code></td>
+<td>機体は収まるが、壁に近いので避けたいコストを付ける範囲</td>
+</tr>
+<tr class="odd">
+<td><code>d &gt; 0.80 m</code></td>
+<td>この壁による膨張コストは付かない。他の障害物やレイヤーのコストは別</td>
+</tr>
+</tbody>
+</table>
+<p>障害物自体のセルは254である。0.45
+mより外側の帯は、概ね次の式で計算する。</p>
+<pre class="text"><code>0.45 &lt; d &lt;= 0.80 のとき：
+  コスト ≈ 252 × exp(-3.0 × (d - 0.45))
+
+整数化した例：d = 0.50 m → 216
+              d = 0.60 m → 160
+              d = 0.80 m → 88</code></pre>
+<p><code>cost_scaling_factor</code>を変えるとこの下がり方が変わる。機体の大きさや、物理的に通れる通路幅は変わらない。</p>
+<p><strong>robot_radius × 2以下の通路は通れないのか？</strong>
+円形モデルで直線通路を考えるなら、基本的にその理解でよい。この例では直径が0.90
+mなので、幅0.90 m未満では壁に重なり、ちょうど0.90
+mでも両側に接触するため、通行可能な余裕がない。</p>
+<figure class="costmap-visual" id="costmap-radius-corridors-picture">
+<figcaption>
+<strong>同じ直径0.90 mの機体を、幅の違う3つの通路へ置く</strong>
+</figcaption>
+<img src="assets/figures/costmap-radius-example-corridor-widths.svg" width="1240" height="490" alt="幅0.80 mの通路では機体が壁に重なり通行不可。幅0.90 mでは壁に接触し余裕がない。幅1.20 mでは片側0.15 mの隙間があり、中央コスト約160の通行候補になる。背景色は機体中心位置の評価で、青い円は機体の形状。">
+<p>
+幅1.20 mなら中央は壁から0.60 mで、機体表面との隙間は片側<code>0.60 −
+0.45 = 0.15
+m</code>になる。中央はInflationの範囲内でも、コストは約160であり、衝突しない経路の候補にできる。<strong>inflation_radiusの2倍である1.60
+mまで通行禁止になるわけではない。</strong>
+</p>
+<p class="costmap-picture-note">
+平行な壁と円形機体を使った模式図。接触を通行可能とはみなしていない。実際には格子の解像度、壁セルの厚さ、Padding、自己位置誤差などの余裕も必要になる。
+</p>
+</figure>
+<p>Nav2は通路幅だけを測って「0.90
+m以下の通路を保存地図から削除する」処理をしているのではなく、格子上のコストと機体形状を使って経路・動作の衝突を判定する。そのため実際の判定境界は格子やプラグインの実装にも依存する。有効な多角形の<code>footprint</code>を設定している場合はその形状が使われ、<code>robot_radius × 2</code>だけで必要な幅を決められない。曲がり角では旋回中の機体形状も確認する。</p>
+</section>
 <section id="costmap-inflation-overlap" class="level4">
 <h4>膨張範囲が重なると、通る場所はなくなるのか</h4>
 <p><strong>左右の壁のInflationが重なっても、それだけで通行不能にはならない。</strong>
@@ -2449,8 +2556,8 @@ m。黄色や橙でも、衝突しない経路候補になり得る。
 </figure>
 <figure class="costmap-picture-card">
 <figcaption>
-<strong>② 半径を小さくした場合</strong><span>幅1.00 m /
-inflation_radius = 0.40 m</span>
+<strong>② 半径を小さくした場合</strong><span>幅1.00 m / inflation_radius
+= 0.40 m</span>
 </figcaption>
 <img src="assets/figures/costmap-tuning-small-radius.svg" width="416" height="340" alt="同じ幅1 mの通路でInflation半径を0.4 mに縮めた図。中央がコスト0になるが、機体の大きさと実際の隙間は変わらない。">
 <p>

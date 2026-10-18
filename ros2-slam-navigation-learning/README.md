@@ -52,7 +52,7 @@
 | 6.5 | 大域と局所、移動窓、PlannerとControllerの関係 |
 | 6.6 | 保存地図・観測レイヤー・合成結果・Inflationの4段階 |
 | 6.7 | 光線による登録と消去、新しい観測がない場合 |
-| [6.8](index.html#costmap-inflation-overlap) | 膨張範囲が重なる狭路、半径を縮めた場合、距離とコストの曲線 |
+| [6.8](index.html#costmap-radius-example) | 半径0.45 m・膨張0.80 m・係数3.0の数値例と通路幅、膨張範囲の重なり、距離コスト曲線 |
 | 6.10 | 局所での停止と、大域への反映・再計画 |
 | [6.13～6.15](index.html#costmap-parameters) | 主要パラメータ、広場・狭路の速度変化、RPP・Speed Filter・動的Inflation |
 | 11.3 | STVLの点群・3Dボクセル・2D投影、時間減衰、再登録、視野モデル |
@@ -97,6 +97,7 @@
 | `scripts/generate_costmap_scope_figures.py` | 大域・局所と再計画の図の再生成（Python標準ライブラリのみ） |
 | `scripts/generate_map_lifecycle_figures.py` | レイヤー合成・観測消去・移動窓・STVLの図の再生成 |
 | `scripts/generate_costmap_tuning_figures.py` | Inflationの比較・距離コスト曲線・狭路の速度変化の図の再生成 |
+| `scripts/generate_costmap_radius_example.py` | 半径0.45 mの数値例と通路幅比較の図の再生成（NumPy・Matplotlib・日本語フォントが必要） |
 | `course-template.html` | 教材HTMLを再生成するためのPandocテンプレート |
 | `licenses` | 同梱フォント・描画ライブラリのライセンス |
 | `VERSION.txt` | ビルド情報 |
@@ -106,6 +107,8 @@
 レイヤー・消去・STVLの図は`python3 scripts/generate_map_lifecycle_figures.py`で再生成します。SVGは拡大と印刷に対応し、スマートフォンでは比較図を縦に並べます。
 
 Inflationと速度の図は`python3 scripts/generate_costmap_tuning_figures.py`で再生成します。Humbleの式に沿った説明図で、実機やNav2シミュレーションの計測結果ではありません。
+
+半径0.45 mの2枚の図は`python3 scripts/generate_costmap_radius_example.py`で再生成します。NumPy、Matplotlib、Ubuntu/Debianの`fonts-noto-cjk`を使用し、日本語の文字形をSVG内へ埋め込むため、閲覧側でのフォント追加は不要です。再生成したSVGは単一ファイル版にも反映します。
 
 ## 対象
 
