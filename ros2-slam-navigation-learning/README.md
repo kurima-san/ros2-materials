@@ -52,7 +52,9 @@
 | 6.5 | 大域と局所、移動窓、PlannerとControllerの関係 |
 | 6.6 | 保存地図・観測レイヤー・合成結果・Inflationの4段階 |
 | 6.7 | 光線による登録と消去、新しい観測がない場合 |
+| [6.8](index.html#costmap-inflation-overlap) | 膨張範囲が重なる狭路、半径を縮めた場合、距離とコストの曲線 |
 | 6.10 | 局所での停止と、大域への反映・再計画 |
+| [6.13～6.15](index.html#costmap-parameters) | 主要パラメータ、広場・狭路の速度変化、RPP・Speed Filter・動的Inflation |
 | 11.3 | STVLの点群・3Dボクセル・2D投影、時間減衰、再登録、視野モデル |
 
 1. 占有地図とコストマップの違い、内部コスト値の意味
@@ -62,6 +64,8 @@
 5. Footprint、Inflation、解像度と衝突判定
 6. Planner・Controller・再計画の処理ループと独立した周期
 7. 台車を局所的に避ける場合と、通路閉塞で大域的に迂回する場合
+8. `inflation_radius`と`cost_scaling_factor`の違い、狭路の通行可否と速度調整
+9. RPPの近接減速、区域ごとの速度制限、走行中のInflation変更の範囲と条件
 
 ## 主な機能
 
@@ -92,6 +96,7 @@
 | `scripts/generate_costmap_figures.py` | コストマップ図の再生成（Python標準ライブラリのみ） |
 | `scripts/generate_costmap_scope_figures.py` | 大域・局所と再計画の図の再生成（Python標準ライブラリのみ） |
 | `scripts/generate_map_lifecycle_figures.py` | レイヤー合成・観測消去・移動窓・STVLの図の再生成 |
+| `scripts/generate_costmap_tuning_figures.py` | Inflationの比較・距離コスト曲線・狭路の速度変化の図の再生成 |
 | `course-template.html` | 教材HTMLを再生成するためのPandocテンプレート |
 | `licenses` | 同梱フォント・描画ライブラリのライセンス |
 | `VERSION.txt` | ビルド情報 |
@@ -99,6 +104,8 @@
 コストマップ図を変更するときは、教材フォルダーで`python3 scripts/generate_costmap_figures.py`を実行します。大域・局所と再計画の図は`python3 scripts/generate_costmap_scope_figures.py`で再生成します。図は通常版ではSVGファイルを参照し、単一ファイル版では同じSVGをデータURLとして内包しています。再生成後は単一ファイル版の対応する画像データも更新します。
 
 レイヤー・消去・STVLの図は`python3 scripts/generate_map_lifecycle_figures.py`で再生成します。SVGは拡大と印刷に対応し、スマートフォンでは比較図を縦に並べます。
+
+Inflationと速度の図は`python3 scripts/generate_costmap_tuning_figures.py`で再生成します。Humbleの式に沿った説明図で、実機やNav2シミュレーションの計測結果ではありません。
 
 ## 対象
 

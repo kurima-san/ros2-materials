@@ -3,7 +3,7 @@
 対象環境：Ubuntu 22.04 / ROS 2 Humble  
 情報確認日：2026-09-17<br>
 オドメトリ・TF章更新日：2026-10-13<br>
-コストマップ章更新日：2026-10-15
+コストマップ章更新日：2026-10-18
 
 ## この教材の目的
 
@@ -1200,6 +1200,43 @@ Inflationは、障害物の周りに「近づくほど避けたい」という�
 
 `resolution: 0.05`なら1セルは5 cmである。細かくすると細い障害物や狭い通路を表現しやすい一方、同じ面積で解像度を半分にするとセル数は4倍になる。センサー精度以上に細かくすれば正確になる、とは限らない。
 
+#### 膨張範囲が重なると、通る場所はなくなるのか {#costmap-inflation-overlap}
+
+**左右の壁のInflationが重なっても、それだけで通行不能にはならない。** 「コスト0の白い帯がない」ことと、「機体を置ける場所がない」ことを分けて考える。以下は半径0.30 mの円形機体、`cost_scaling_factor: 3.0`を共通にした比較である。
+
+<div class="costmap-visual" id="costmap-inflation-comparison">
+<div class="costmap-picture-grid">
+<figure class="costmap-picture-card">
+<figcaption><strong>① 半径が大きくても通路は残る</strong><span>幅1.00 m / inflation_radius = 1.20 m</span></figcaption>
+<img src="assets/figures/costmap-tuning-wide-radius.svg" width="416" height="340" alt="幅1 mの通路を左右の壁のInflationが覆う。中央のコストは約138で253未満、直径0.6 mの円形機体が収まる。">
+<p>中央は壁から0.50 m。理論上のコストは約138で、壁との隙間は機体の左右それぞれ0.20 m。黄色や橙でも、衝突しない経路候補になり得る。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>② 半径を小さくした場合</strong><span>幅1.00 m / inflation_radius = 0.40 m</span></figcaption>
+<img src="assets/figures/costmap-tuning-small-radius.svg" width="416" height="340" alt="同じ幅1 mの通路でInflation半径を0.4 mに縮めた図。中央がコスト0になるが、機体の大きさと実際の隙間は変わらない。">
+<p>中央は膨張範囲の外なのでコスト0になる。ただし物理的な隙間は①と同じ。中央へ寄せる勾配や、コストを使う近接減速の情報は少なくなる。</p>
+</figure>
+<figure class="costmap-picture-card">
+<figcaption><strong>③ 機体より狭い通路は通れない</strong><span>幅0.50 m / 機体の直径0.60 m</span></figcaption>
+<img src="assets/figures/costmap-tuning-too-narrow.svg" width="416" height="340" alt="幅0.5 mの通路に直径0.6 mの円形機体が重なり、中央もコスト253。赤い×で衝突を示す。">
+<p>円形機体が壁に重なる。Inflationを縮めたりFootprintを小さく偽ったりしても、実物が通れる幅にはならない。</p>
+</figure>
+</div>
+<p class="costmap-picture-note">壁の線までの距離を使う理想化した断面図。格子の配置と機体位置は模式的で、実際は解像度、壁セルの厚さ、姿勢、Padding、自己位置誤差も効く。緑の破線は比較用の通路中央で、③では有効な経路ではない。</p>
+</div>
+
+同じInflationLayerでは、左右の障害物からの膨張コストは通常、高い方を残す。例えば中央に左右から138ずつ届いても、足して276にするわけではない。全域が非ゼロでも、中央が相対的に低コストなら経路選択に役立つ。ただしPlannerの探索・コスト評価、Controllerの衝突判定や運動制約によって、実際に経路が得られるかは変わる。
+
+`inflation_radius`は「どこまで広げるか」、`cost_scaling_factor`は「その範囲内でどれだけ急に下げるか」である。あるセルが変更前後とも膨張範囲内にあるなら、半径だけを変えても、そのセルの距離コストは基本的に変わらない。
+
+<figure class="costmap-visual costmap-cell-detail" id="costmap-inflation-curves">
+<figcaption><strong>同じ半径でも、減衰係数でコストの勾配が変わる</strong></figcaption>
+<img src="assets/figures/costmap-tuning-curves.svg" width="720" height="330" alt="横軸は障害物からの距離、縦軸は内部コスト。内接半径0.3 mとInflation半径1.2 mを固定すると、係数10の紫線は係数3の青線より急に下がる。">
+<p><code>cost_scaling_factor</code>を小さくすると、比較的遠くまで高めのコストが残る。大きくすると急に下がる。半径を広げても係数が大きすぎれば、整数化で遠くのコストが0になり、期待する勾配ができない場合がある。</p>
+</figure>
+
+「狭いので通れない」ときは、まずFootprint・Padding・壁の位置と厚さ・未知セル・Plannerの設定を確認する。非ゼロの色が見えることだけを理由にInflationを縮める必要はない。設定項目は[6.13節](#costmap-parameters)、速度との関係は[6.14節](#costmap-speed)、動的変更は[6.15節](#costmap-adaptive-inflation)で具体化する。
+
 ### 6.9 コストマップから障害物回避へ至る処理ループ {#costmap-control-loop}
 
 典型的なNav2では、Planner ServerがGlobal Costmapを、Controller ServerがLocal Costmapを管理する。内部のプラグインが更新済みのコストマップを参照する。通常、ControllerがRViz向けの`/local_costmap/costmap`を毎回購読してから制御する構成ではない。
@@ -1322,6 +1359,201 @@ ros2 topic hz /global_costmap/costmap
 | 狭い通路と旋回を確認する | Footprintと選択した衝突判定が実機形状を反映するか |
 
 **説明できれば理解できたこと：** 地図にない箱はどのレイヤーが登録するか。箱の周りの色は何を意味するか。Localで塞がってもGlobal経路が変わらないのはなぜか。箱が観測されなくなっただけで消してよいか。この4点を、観測・コスト・計画・指令の順に説明する。
+
+### 6.13 コストマップの主要パラメータを読む {#costmap-parameters}
+
+Nav2全体に1個の設定があるのではなく、GlobalとLocalの各ノード、その中のレイヤーに設定がある。例えば`/local_costmap/local_costmap`の`inflation_layer.inflation_radius`と、`/global_costmap/global_costmap`の同名パラメータは別々である。`inflation_layer`はYAMLで付けたプラグインの名前なので、別名ならパラメータ名も変わる。
+
+#### 範囲・形状・更新周期
+
+| パラメータ | 意味・単位 | 調整すると何が変わるか |
+|---|---|---|
+| `global_frame` / `robot_base_frame` | 格子の基準座標 / 機体基準座標 | 典型はGlobalが`map`、Localが`odom`。機体側は実際のTFに合わせる |
+| `resolution` | 1セルの辺長、m | 0.05なら5 cm。小さくすると細部を表せるが、同じ面積のセル数と処理負荷が増える |
+| `width` / `height` | 格子の幅・高さ、m | Localの先読み範囲。8 m四方の中央に機体がいれば前方は概ね4 m。静的地図に合わせてサイズが決まる構成もある |
+| `rolling_window` | 機体に追従して窓を移動するか | 通常Localは`true`。窓の移動と障害物の時間減衰は別 |
+| `footprint` / `robot_radius` | 多角形の頂点列 / 円形近似の半径、m | 有効な多角形Footprintを指定する場合はそれを使う。円形近似なら半径を使う。形状を実機より小さくしない |
+| `footprint_padding` | Footprintへ加える余裕、m | 実効的な機体形状・内接半径が変わる。狭路に対して大きすぎないか確認する |
+| `update_frequency` | 内部コストマップを更新する周期、Hz | 障害物や膨張コストの更新頻度。センサーの観測頻度とは別 |
+| `publish_frequency` | RVizなどへ格子を配信する周期、Hz | 表示・購読の更新頻度。これだけ上げても内部計算は速くならない |
+| `track_unknown_space` | 未知セルを保持するか | 未知を通れるかはPlannerの`allow_unknown`等も関係する。未知と障害物を同じ意味にしない |
+
+#### Inflationと障害物観測
+
+| パラメータ | 意味・単位 | 調整の読み方 |
+|---|---|---|
+| `inflation_layer.inflation_radius` | 障害物から膨張コストを広げる上限距離、m | 大きいほど広い範囲を評価できる。範囲全体が禁止域になるわけではない。少なくとも実際の内接半径を覆う設定を基本とする |
+| `inflation_layer.cost_scaling_factor` | 距離に対する指数減衰の係数 | **大きいほど急に下がり、小さいほど遠くまで高めのコストが残る。** 半径とセットで勾配を見る |
+| `obstacle_layer.<source>.obstacle_max_range` | 反射点を障害物として採用する最大距離、m | 大きくしてもセンサーの有効距離は増えない。遠方ノイズを採用しない範囲を選ぶ |
+| `obstacle_layer.<source>.raytrace_max_range` | 空きを確認する光線の最大距離、m | 有効な光線が必要。値を増やすだけで未観測方向がClearingされるわけではない |
+| `<source>.marking` / `<source>.clearing` | 障害物登録 / 消去用観測に使うか | 標準Obstacle/VoxelのRaytraceとSTVLの時間・視野モデルを区別する |
+| `min_obstacle_height` / `max_obstacle_height` | 採用する高さ、m | 床と自己反射を除き、機体に当たる張り出しを残す。設定階層や機能はレイヤーごとに確認する |
+| `observation_persistence` | 観測バッファの保持時間、s | 格子に書かれた障害物の寿命ではない。STVLの`voxel_decay`と混同しない |
+
+`<source>`は`scan`や`points`などの観測源名である。上表の距離パラメータは標準ObstacleLayerを例にしている。STVLへそのまま同名設定をコピーせず、[11.3節のSTVL設定](#stvl-spatial-guide)と使用バージョンを確認する。
+
+次は既存のLocal設定に統合する**説明用の抜粋**である。`plugins`のリスト、センサートピックと観測源、Global側の設定は別途必要であり、この断片だけでBringupが完了するわけではない。以降の数値例に合わせて円形半径0.30 m、追加Paddingなしとしている。実機では形状と必要な余裕を先に決める。
+
+```yaml
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      global_frame: odom
+      robot_base_frame: base_footprint
+      rolling_window: true
+      width: 8.0
+      height: 8.0
+      resolution: 0.05
+      robot_radius: 0.30
+      footprint_padding: 0.0
+      update_frequency: 10.0
+      publish_frequency: 5.0
+      # pluginsには、観測用レイヤーとこのInflationLayerを含める
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: true
+        inflation_radius: 1.20
+        cost_scaling_factor: 3.0
+```
+
+GlobalとLocalは同じ数値である必要はない。Globalでは通路の選択に必要な勾配、Localでは機体近傍の衝突判定とControllerが使う勾配を確認する。どちらも実際の機体形状を反映する点は共通である。
+
+### 6.14 狭い場所で減速し、開けた場所で速度を上げる {#costmap-speed}
+
+**InflationLayer自身は速度指令を出さない。** コストを受け取るControllerに近接減速を設定するか、区域ごとの速度制限を渡す。狭路から広場へ出たときも、他の制約がなければ設定した巡航速度へ戻るのであり、広さに比例して無制限に加速するわけではない。
+
+| 方法 | 何を見て速度を変えるか | 主な用途 |
+|---|---|---|
+| Regulated Pure Pursuit（RPP）の近接減速 | 現在位置のLocalコストから推定する障害物までの距離 | 初めて見る狭い通路、近くに置かれた障害物 |
+| Speed Filter | 保存した速度制限マスク上のロボット位置 | 「この廊下は40%」など、場所ごとの運用ルール |
+| 独自の判断ノードから`SpeedLimit` | 観測した通路幅、視界、運用状態など | 複数の条件を統合した速度上限 |
+
+DWBやMPPIも、コストや運動制約から軌道を評価するが、以下のRPPパラメータをそのまま設定することはできない。使用中のControllerに合う調整をする。RPPは経路追従が中心なので、障害物を見て任意の迂回経路を作る機能とは区別し、必要な大域再計画と組み合わせる。
+
+#### RPPで障害物への近さに応じて減速する {#costmap-rpp-speed}
+
+次は**ROS 2 HumbleのRPP**に合わせた例である。既存の`FollowPath`がDWBなどなら、同じ名前の設定に数行足すだけでは有効にならない。ControllerプラグインをRPPへ切り替え、既存のGoal Checker・Progress Checkerなどは適切に引き継ぐ。新しいNav2では設定名や機能が変わる場合がある。
+
+```yaml
+controller_server:
+  ros__parameters:
+    controller_frequency: 20.0
+    controller_plugins: ["FollowPath"]
+    FollowPath:
+      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+      desired_linear_vel: 0.80
+      use_cost_regulated_linear_velocity_scaling: true
+      cost_scaling_dist: 0.80
+      cost_scaling_gain: 1.0
+      inflation_cost_scaling_factor: 3.0
+      regulated_linear_scaling_min_speed: 0.10
+      use_regulated_linear_velocity_scaling: true
+      regulated_linear_scaling_min_radius: 0.90
+      use_collision_detection: true
+      max_allowed_time_to_collision_up_to_carrot: 1.0
+```
+
+| 設定 | この例での意味 |
+|---|---|
+| `desired_linear_vel: 0.80` | 通常目指す並進速度、m/s。他の減速条件や外部上限がなければこの値へ戻る |
+| `use_cost_regulated_linear_velocity_scaling: true` | 障害物への近接による減速を使う。Humbleの既定値は`false`なので明示する |
+| `cost_scaling_dist: 0.80` | 推定した障害物距離が0.80 m未満なら近接減速を行う。**Localの`inflation_radius`以下にする** |
+| `cost_scaling_gain: 1.0` | 近接減速の倍率。正の値で1以下を基本とし、小さくすると対象範囲内でさらに減速する |
+| `inflation_cost_scaling_factor: 3.0` | コストから距離を逆算するための係数。**Localの`inflation_layer.cost_scaling_factor`と一致させる** |
+| `regulated_linear_scaling_min_speed: 0.10` | 近接・曲率による速度調整の下限、m/s。停止を禁止する値ではない。衝突判定・ゴール接近などは別に働く |
+| `use_regulated_linear_velocity_scaling` / `regulated_linear_scaling_min_radius` | 急な曲がりでも減速する。後者は減速対象となる旋回半径で、障害物までの距離ではない |
+| `use_collision_detection` / `max_allowed_time_to_collision_up_to_carrot` | 候補指令を将来へ進めて衝突確認する。時間上限はs、確認距離は追従点までにも制限される |
+
+HumbleのRPPは、現在の機体基準位置にある膨張コスト`C`から、概ね次のように距離を戻す。ここで`r_inscribed`はPadding込みFootprintの内接半径である。
+
+```text
+d ≈ r_inscribed - ln(C / 252) / inflation_cost_scaling_factor
+
+d < cost_scaling_dist のときの近接減速候補:
+  v_cost = v_base × cost_scaling_gain × d / cost_scaling_dist
+```
+
+**この`d`は機体基準位置から障害物までの距離であり、機体表面の隙間ではない。** コストが0やUnknownの場合にはこの逆算をしない。別の意味のコストを同じ値域へ重ねたり、Inflationの係数を不一致にしたりすると、距離推定も期待どおりにならない。
+
+<figure class="costmap-visual" id="costmap-speed-picture">
+<figcaption><strong>同じInflationのまま、広場 → 狭路 → 広場で速度が変わる</strong></figcaption>
+<img src="assets/figures/costmap-tuning-speed.svg" width="720" height="430" alt="広い場所A、幅1 mの通路B、広い場所Cがつながる図。Inflation半径1.2 mは固定。近接減速だけを見ると速度候補はAで0.8 m/s、Bで約0.5 m/s、Cで0.8 m/sへ戻る。下段は位置に応じた速度候補の曲線。">
+<p>A・Cでは壁が十分遠いので、この例の近接減速はかからない。Bの中央は壁から0.50 mなので、<code>0.80 × 1.0 × 0.50 / 0.80 ≈ 0.50 m/s</code>になる。半径0.30 mの機体表面の隙間は0.20 mである。</p>
+<p class="costmap-picture-note">下段は説明用の速度候補であり、実測速度ではない。距離と整数コストの丸め、曲率・ゴール接近・外部速度制限・加減速制約を省略した。広い部分の幅は2.50 m。壁への距離には入口の角も影響する。</p>
+</figure>
+
+実際は近接・曲率の候補と下限、ゴール接近、外部上限などをControllerの処理順で反映する。Velocity Smootherや機体側の加減速制限もあるため、図の速度へ瞬時に切り替わるとは限らない。観測と制御の遅延を含め、必要な減速・停止距離が確保できる速度にする。
+
+ここでInflationを0.40 mまで縮めると、壁から0.50 mの中央はコスト0になり、**コストによる近接減速が働かなくなる場合がある。** 「狭い場所ほどInflationを縮めればよい」とは限らない理由の一つである。
+
+#### 既知の区域にはSpeed Filterで速度上限を付ける {#costmap-speed-filter}
+
+通路が広くても人が出入りする区域は遅くしたい、といった規則にはSpeed Filterが向く。通常の占有地図とは別に速度制限用のマスクを用意する。
+
+```mermaid
+flowchart LR
+    MASK["速度制限マスク<br/>例：廊下40%、広場は追加制限なし"] --> F["Speed Filter"]
+    POSE["マスク座標での機体位置"] --> F
+    F --> LIMIT["SpeedLimitトピック"]
+    LIMIT --> C["対応するController"]
+    COST["Local Costmap<br/>近接・衝突の評価"] --> C
+    PATH["大域経路"] --> C
+    C --> CMD["速度指令"]
+```
+
+構成には、マスクを配信するMap Server、マスクの意味を配信するCostmap Filter Info Server、Costmapの`filters`に登録する`nav2_costmap_2d::SpeedFilter`、速度上限を受け取るControllerが必要になる。`inflation_layer`のパラメータだけで区域制限ができるわけではない。
+
+Humbleでは、例えばFilter Infoを`type: 1`（百分率）、`base: 0.0`、`multiplier: 1.0`とすると、マスクの値40は40%を意味する。巡航設定0.80 m/sなら上限は0.32 m/sである。**マスク値0と`SpeedLimit.speed_limit: 0.0`は追加制限の解除であり、停止指令ではない。** 型`type: 2`は絶対速度方式で、値の換算に`base`と`multiplier`を使う。
+
+マスクの値は画像の見た目の灰色と同じとは限らない。Map Serverの読み込みモード・閾値などで変換されるため、配信されたOccupancyGridの値を確認する。HumbleのSpeed Filterはロボットがいるセルを参照するので、狭路に入る前に十分減速できるよう、制限区域を入口より手前から設ける。マスクの範囲外へ出れば常に解除される、とも仮定せず、通常走行する領域を明示的に覆う。
+
+独自ノードからも`nav2_msgs/msg/SpeedLimit`で上限を渡せる。Controller Serverの`speed_limit_topic`と送信先を一致させる。複数のノードが同じトピックへ競合して送ると、すべての制限の最小値へ自動統合されるわけではないため、上限を決める担当をそろえる。
+
+### 6.15 広さに応じてInflationを動的に変えられるか {#costmap-adaptive-inflation}
+
+**Humbleの標準InflationLayerでは、`inflation_radius`と`cost_scaling_factor`を実行中に変更できる。** ただし標準レイヤーが周囲の幅を見て自動調整する機能ではない。場所・通路幅・運用状態などを判断してパラメータを設定するノードやBT処理を別途用意する。
+
+| 実現したいこと | 方法と範囲 |
+|---|---|
+| 狭い場所で遅く、開けた場所で速く | まず固定Inflation＋Controllerの近接減速やSpeed Filterを使う |
+| GlobalとLocalで異なる膨張距離を使う | 各CostmapのInflationLayerへ別々の値を設定できる |
+| 広い区域・狭い区域で設定を切り替える | 区域などを判断する処理から動的パラメータ更新を行う |
+| 同じCostmap内で、広場セルと狭路セルに同時に違う半径を使う | 1個の標準InflationLayerの半径変更ではできない。空間ごとの処理をする独自レイヤー等が必要 |
+
+例えば、次は説明用の広場プロファイル1.20 mから狭路プロファイル0.80 mへの変更である。6.14節の`cost_scaling_dist: 0.80`以下へInflationを縮めないようにし、係数3.0は変更しない。**幅1 mの中央の距離0.50 mは両方の膨張範囲内なので、中央の約138というコストはこの切替では変わらない。**
+
+```bash
+# ノード名・レイヤー名は実際の起動構成に合わせる
+ros2 param get /local_costmap/local_costmap inflation_layer.inflation_radius
+ros2 param get /global_costmap/global_costmap inflation_layer.inflation_radius
+
+# 例：狭路プロファイル。2ノードへの変更は一括・同時ではない
+ros2 param set /local_costmap/local_costmap inflation_layer.inflation_radius 0.8
+ros2 param set /global_costmap/global_costmap inflation_layer.inflation_radius 0.8
+
+# 例：広場プロファイルへ戻す
+ros2 param set /local_costmap/local_costmap inflation_layer.inflation_radius 1.2
+ros2 param set /global_costmap/global_costmap inflation_layer.inflation_radius 1.2
+```
+
+これは設定変更の例であり、上のコマンド列をそのまま連続実行しても、狭路を自動判定するプログラムにはならない。Global側も変えるかは計画上の必要性で決める。実行中の変更は、再起動後のYAMLを自動で書き換えるものでもない。
+
+```mermaid
+flowchart LR
+    W["広場プロファイル<br/>例：radius 1.20 m"] -->|"狭い状態が一定時間続く"| S["切替処理<br/>減速・更新確認"]
+    S --> N["狭路プロファイル<br/>例：radius 0.80 m"]
+    N -->|"十分広い状態が一定時間続く"| R["切替処理<br/>更新確認"]
+    R --> W
+```
+
+切替処理を作るときは、次の関係を維持する。
+
+1. **実物の形状は維持する。** 通路を通したい都合でFootprintを縮めず、各プロファイルで衝突判定が成立することを確認する。
+2. **速度判断に必要なコストを残す。** HumbleのRPPを使うなら`cost_scaling_dist <= inflation_radius`を保つ。係数も変えるならRPPの`inflation_cost_scaling_factor`との整合が必要になる。
+3. **変更の受理と反映を区別する。** パラメータ要求の成功後、キャッシュ更新と次のCostmap更新で再膨張される。Global・Local・Controllerの変更はノードをまたぐため同時にはならない。切替中は減速・必要に応じて停止し、反映を確認してから再計画する。
+4. **境界で往復させない。** 狭路へ入る閾値と広場へ戻る閾値を分け、一定時間状態が続いたら切り替えるなどのヒステリシスを入れる。センサー周期ごとの再設定は再計算負荷や経路の揺れにつながる。
+
+最初の調整は、実機形状 → 地図・観測と解像度 → 固定Inflationの勾配 → Controllerの速度調整、の順で行う。その上で、特定の区域に異なる運用上の余裕が必要ならプロファイル切替を追加すると、何が効いているかを追いやすい。
 
 ---
 
@@ -2365,6 +2597,11 @@ ros2 bag record -o slam_debug \
 - [Nav2：Costmap 2D](https://docs.nav2.org/configuration/packages/configuring-costmaps.html)
 - [Nav2 Humble：内部コスト値の定義](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/include/nav2_costmap_2d/cost_values.hpp)
 - [Nav2 Humble：Inflationの距離とコスト計算](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/include/nav2_costmap_2d/inflation_layer.hpp)
+- [Nav2 Humble：InflationLayerの動的パラメータ更新](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/plugins/inflation_layer.cpp)
+- [Nav2 Humble：Regulated Pure Pursuitの設定](https://github.com/ros-navigation/navigation2/blob/humble/nav2_regulated_pure_pursuit_controller/README.md)
+- [Nav2 Humble：RPPの近接減速・距離逆算・速度制限の実装](https://github.com/ros-navigation/navigation2/blob/humble/nav2_regulated_pure_pursuit_controller/src/regulated_pure_pursuit_controller.cpp)
+- [Nav2 Humble：Speed Filterのマスクと速度上限](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/plugins/costmap_filters/speed_filter.cpp)
+- [Nav2 Humble：SpeedLimitメッセージ](https://github.com/ros-navigation/navigation2/blob/humble/nav2_msgs/msg/SpeedLimit.msg)
 - [Nav2 Humble：ObstacleLayerのMarking・Clearing](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/plugins/obstacle_layer.cpp)
 - [Nav2 Humble：Global/Local Costmapの設定例](https://github.com/ros-navigation/navigation2/blob/humble/nav2_bringup/params/nav2_params.yaml)
 - [Nav2 Humble：再計画とRecoveryのBehavior Tree](https://github.com/ros-navigation/navigation2/blob/humble/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml)
