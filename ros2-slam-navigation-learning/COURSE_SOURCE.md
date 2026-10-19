@@ -3,7 +3,7 @@
 対象環境：Ubuntu 22.04 / ROS 2 Humble  
 情報確認日：2026-09-17<br>
 オドメトリ・TF章更新日：2026-10-13<br>
-コストマップ章更新日：2026-10-18
+コストマップ章更新日：2026-10-19
 
 ## この教材の目的
 
@@ -1169,6 +1169,163 @@ VoxelやSTVLが内部で3Dを扱っても、通常のNav2が参照する完成�
 | StaticLayerの壁 | 保存地図に残っていれば、他の層を消去しても合成結果に残る | [レイヤーの合成](#map-layers-picture) |
 
 STVL内部のボクセル寿命、観測バッファの保持時間、2D窓の範囲はそれぞれ別の設定である。センサーが止まって記録が減衰した場合も、「空いていると観測できた」とは扱わない。
+
+#### 新しく見つけた障害物を、いつまで残すか {#costmap-retention-policies}
+
+**「空いていると観測できたら消し、それ以外は残す」構成も、「一定時間再観測されなければ消す」構成も選べる。** どちらになるかは、障害物を登録したレイヤーと観測源の設定で決まる。GlobalかLocalかという名前だけでは決まらない。
+
+標準のレイヤーは、通常、物体IDを追跡して「この台車がAからBへ移動した」と判断するわけではない。**Aに書いた格子・ボクセルの記録を何の条件で消すか**を設定する。新しい障害物をCostmapへ登録しても、保存済みの占有地図ファイルへ自動的に書き込まれるわけではない。
+
+| 方針 | 主な構成・設定 | 空きを確認する観測が来た場合 | 視野外・遮蔽などで確認できない場合 |
+|---|---|---|---|
+| A：空きを観測したら消す | 標準ObstacleLayer / VoxelLayer。`marking: true`、`clearing: true` | 有効なRaytraceで対象をClearする | 時間だけでは消さず、記録を残す |
+| B：観測による消去を使わない | 標準ObstacleLayer。登録用は`marking: true`、その層の全観測源で`clearing: false` | 観測によるClearingは行わない | 記録を残す |
+| C：再登録されなければ期限で消す | STVL。`mapping_mode: false`、`decay_model: 0`、`voxel_decay: 2.0`など。視野による加速なし | 即座のRaytrace消去にはせず、期限で扱う | 最後の登録から2秒を超えた更新で古い記録を消す |
+| D：期限に加えて視野内で早く消す | STVLの線形寿命＋観測源の`clearing: true`、視野モデル、正の`decay_acceleration` | 視野モデル内の古い記録を設定に応じて早く消す | 視野外でも基本の線形寿命は進む |
+
+表は通常の更新中の挙動である。リセット・Clearサービス・Rolling Windowから外れる処理・機体Footprint内の消去などは別に働く。Bも、再起動後まで保存する永続記録という意味ではない。VoxelLayerでは3DのボクセルをClearし、高さ方向の残り方や閾値に応じて2Dセルが変わるため、1本の光線でそのXY列が必ずFreeになるとは限らない。
+
+同じ位置Aについて、0秒に障害物を登録し、それ以降Aへ障害物点を再登録しない場合を比べる。STVLは線形寿命2秒・加速なし、古い入力の再利用なしとする。
+
+<figure class="costmap-visual" id="costmap-retention-unobserved-picture">
+<figcaption><strong>① Aの現在状態を確認できないまま、時間だけが進む</strong></figcaption>
+<img src="assets/figures/costmap-retention-unobserved.svg" width="840" height="350" alt="0秒でAに障害物を登録し、その後はAを再観測できない。観測消去ありのObstacleLayerと登録のみのObstacleLayerは2.2秒でも保持する。線形寿命2秒のSTVLは2.2秒で記録が期限切れになる。">
+<p>Aが視野外や遮蔽の裏に入っただけでは、標準ObstacleLayerは空きを確認できない。STVLの期限切れは、空きを観測していなくても古い記録を破棄する方針である。</p>
+</figure>
+
+<figure class="costmap-visual" id="costmap-retention-clearing-picture">
+<figcaption><strong>② 1秒で、有効な光線が以前のAを通り抜ける</strong></figcaption>
+<img src="assets/figures/costmap-retention-clearing.svg" width="840" height="350" alt="0秒でAに障害物を登録し、1秒で空きを示す有効な光線がAを通る。clearingがtrueのObstacleLayerはAを消去し、falseなら保持する。加速なしのSTVLは1秒では保持し、2.2秒で期限切れになる。">
+<p>Aの設定では、この観測を反映した更新で空きに戻せる。Bでは光線による消去をしない。CのSTVLは標準Raytraceとは別の方式なので、この例では2秒の期限を待つ。</p>
+<p class="costmap-picture-note">青は対象レイヤーに記録がある状態、緑は有効な空き観測で更新した状態、灰色は期限切れで記録を破棄した状態。最終CostmapがFreeかUnknownかは、他の層と設定にも依存する。ROS時刻とCostmap更新が進む前提で、リセット・窓外への移動・Footprint内の消去は除いている。図は計測結果ではない。</p>
+</figure>
+
+#### A：空きを観測した場合に消し、未確認なら残す設定 {#costmap-clearing-config}
+
+次はHumbleの標準ObstacleLayerで2D LiDARを使う例で、既存の`local_costmap.local_costmap.ros__parameters`配下へ統合する抜粋である。既存のTF・機体形状・範囲・更新周期・Inflation設定は別途必要になる。StaticLayerなども使っている場合は、`plugins`に必要な既存項目を残す。Global側へ採用する場合も、そのノードに観測源を設定する。
+
+```yaml
+plugins: [obstacle_layer, inflation_layer]
+obstacle_layer:
+  plugin: "nav2_costmap_2d::ObstacleLayer"
+  enabled: true
+  combination_method: 1
+  observation_sources: scan
+  scan:
+    topic: /scan
+    data_type: LaserScan
+    marking: true
+    clearing: true
+    obstacle_max_range: 4.0
+    raytrace_max_range: 5.0
+    observation_persistence: 0.0
+    expected_update_rate: 0.30
+    inf_is_valid: false
+```
+
+障害物が動いた後、以前の位置を通って背後の壁などに届く有効な光線があれば、Clearできる。距離の値はセンサーに合わせる例示値で、`raytrace_max_range`を長く設定しても存在しない光線は作られない。
+
+LaserScanの`+Inf`を「測定範囲内に反射がない有効な観測」として利用できる機器では、`inf_is_valid: true`を検討できる。センサー仕様を確認し、欠測・通信断・NaNを空きの証拠に置き換えない。PointCloud2に点がない方向についても、自動的に空きの光線が生成されるわけではない。
+
+#### B：登録した障害物を観測だけでは消さない設定 {#costmap-mark-only-config}
+
+Aの設定に対し、変更する部分は次のようになる。
+
+```yaml
+obstacle_layer:
+  scan:
+    marking: true
+    clearing: false
+```
+
+この例は`scan`だけを観測源にしている。複数の観測源がある場合、同じレイヤーの別の観測源がClearingする可能性もあるため、**その層で観測による消去を止めるなら、全観測源の設定を確認する。**
+
+一度見つけたものを保守的に残す用途に使える一方、動く人や台車の過去位置、ノイズ点も残りやすい。`clearing: false`でも、Footprint内の消去が有効ならその範囲は別途消される。明示的なリセットや窓の移動も別であり、これだけで永続的な障害物地図を作れるわけではない。
+
+#### C：STVLで、最後の登録から2秒を超えたら消す設定 {#costmap-decay-config}
+
+次は第11.3節のSTVL構成と同様にPointCloud2を使い、**時間による消去だけを比較しやすくした抜粋**である。AのObstacleLayerの代わりに採用する例で、センサーの高さ・有効距離、Footprint、Inflationなどは[STVLの実設定](#stvlをlocal-costmapへ設定する)に合わせて用意する。
+
+```yaml
+plugins: [stvl_layer, inflation_layer]
+stvl_layer:
+  plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
+  enabled: true
+  mapping_mode: false
+  decay_model: 0
+  voxel_decay: 2.0
+  voxel_size: 0.05
+  track_unknown_space: true
+  mark_threshold: 1
+  observation_sources: points
+  points:
+    topic: /navigation/obstacles
+    data_type: PointCloud2
+    marking: true
+    clearing: false
+    observation_persistence: 0.0
+    clear_after_reading: true
+    expected_update_rate: 0.30
+    decay_acceleration: 0.0
+```
+
+`decay_model: 0`は線形モデルで、この例の`voxel_decay: 2.0`を寿命として読める。例えばAを最後に0秒で登録したなら、2秒を超えた後の更新で期限切れになる。1.5秒で再びAを登録すれば、加速なしでは3.5秒を超えるまで延びる。実際に物体が動き始めた時刻や、点群メッセージの生成時刻から単純に2秒を数える説明ではない。別のDecayモデルでは、この数値を同じ「2秒の寿命」と解釈しない。
+
+**STVLでは`clearing: false`でも、この線形寿命による消去は進む。** 確認したHumble実装では、`mapping_mode: false`なら視野用のClearing観測が空でも時間減衰処理を行う。標準ObstacleLayerの同名設定と意味を取り違えない。`mapping_mode: true`は通常のナビゲーション用の消去処理を通らないため、この寿命の例とは別の動作になる。
+
+記録を消しても、物体が実世界にないと確認したことにはならない。`track_unknown_space: true`や他の層の影響もあるため、期限切れが必ず「最終CostmapのFree」を意味するわけではない。
+
+#### D：STVLで、視野内の古い記録はさらに早く消す設定 {#costmap-frustum-clearing-config}
+
+Cに対し、観測源の設定を次のように変更すると、基本の線形寿命に視野内の減衰加速を加えられる。
+
+```yaml
+stvl_layer:
+  points:
+    clearing: true
+    model_type: 1
+    horizontal_fov_angle: 6.28
+    vertical_fov_angle: 0.70
+    decay_acceleration: 5.0
+```
+
+Humble系のこの例では`model_type: 1`を3D LiDARのモデルとして使っている。角度はrad単位の例示値であり、機種の実視野と取付姿勢に合わせる。Depth Cameraなどには対応するモデルを使う。詳細は[視野モデルの図](#stvl-frustum-guide)を参照する。
+
+視野内の古い記録は、加速なしの2秒より早く消える場合がある。視野外でも、基本の線形寿命は進む。新しい点が継続して登録されれば時刻が更新される。これは標準Raytraceと同じ「そこを光線が通ったから空き」という判定ではなく、視野内の減衰を速める方式であり、遮蔽や欠測も考慮して調整する。
+
+#### 観測バッファ・障害物の寿命・センサー断を分ける {#costmap-retention-clocks}
+
+| パラメータ・機構 | 何を管理するか | 何を意味しないか |
+|---|---|---|
+| `observation_persistence` | 入力した観測をバッファへ保持する期間、s | 書き込んだ障害物セルを、その秒数後に消す設定ではない |
+| `observation_persistence: 0.0` | 確認したHumble実装では最新1件を保持する | 「すぐ捨てる」「障害物の寿命が0秒」という意味ではない |
+| STVLの`clear_after_reading: true` | 読み出した入力観測をバッファから取り除く | 登録済みのボクセルをその場で消す設定ではない |
+| STVLの`voxel_decay` | 選択した時間モデルで記録を減衰させる値 | 全モデルで共通の固定TTLではない。上の2秒の説明は線形モデル0 |
+| `expected_update_rate` | 観測が新鮮かを判定する許容更新間隔 | 障害物を自動消去する期間ではない。確認したHumble実装では**秒で指定し、Hzではない** |
+| ROS時刻とCostmap更新 | 期限判定の時計と、消去処理を実行する機会 | 壁時計だけが進めば必ず消えるわけではない。シミュレーション時計や更新が止まれば消去も遅れる |
+
+`expected_update_rate: 0.30`なら、最後の正常な観測更新から0.30秒を超えると観測が古いと判定する設定である。`0.0`はこの経過時間による鮮度チェックを行わない設定になる。障害物の保持・消去とは別に、センサー断を検知して速度指令を止める仕組みと機体側の指令タイムアウトを確認する。
+
+特にSTVLで`observation_persistence: 0.0`かつ`clear_after_reading: false`だと、入力が止まってもバッファの最後の観測を読み続け、古い点でボクセルを再登録して寿命を更新する場合がある。逆に保持期間内の複数の古い点群を使えば、移動した物体の過去位置が再登録される場合もある。**図の「最後に登録してから2秒」を実現するには、入力の再利用を含めて設定する。** `clear_after_reading`はSTVLの設定であり、標準ObstacleLayerへそのままコピーする設定ではない。
+
+#### ある層で消えても、最終Costmapに残る場合 {#costmap-retention-combination}
+
+同じ場所を複数の層が障害物として持っていると、STVLだけを期限切れにしても、別の層が障害物を供給し続けることがある。
+
+```mermaid
+flowchart LR
+    O["ObstacleLayer<br/>Aを保持：254"] --> M["最大値で合成する例"]
+    S["STVL<br/>Aの記録は期限切れ"] --> M
+    M --> C["最終Costmap<br/>Aは障害物のまま"]
+```
+
+新しい障害物を一定時間で忘れたいなら、同じ動的障害物を期限なしの層にも重複登録していないかを見る。StaticLayerの保存地図にある壁も、STVLやObstacleLayerをClearするだけでは消えない。未知値の扱いと合成方法も含めて確認する。
+
+GlobalをA、LocalをCのように設定することもできる。その場合、Localから障害物が消えてもGlobalには残り、大域経路がその場所を避け続ける場合がある。両方から同じ方針で消したいなら、各Costmapのレイヤー・観測源を設定する。Localの消去がGlobalへ自動コピーされるわけではない。
+
+また、Rolling Windowから外れることは対象範囲が変わることであり、空きの確認ではない。ClearサービスやRecoveryでのリセットも、観測や寿命とは別の明示的な操作である。消した後に新しい観測や保存地図から再び障害物が入ることもある。
+
+設定を比較するときは、同じ位置の障害物について「見続ける」「どけて背後を観測する」「遮蔽して見えなくする」「入力を止める」を別々に試す。元の観測、対象レイヤー、最終Costmap、鮮度判定を合わせて記録すると、消えた理由と残った理由を切り分けられる。
 
 ### 6.8 FootprintとInflation：機体の大きさと余裕をどう表すか {#costmap-footprint}
 
@@ -2651,6 +2808,9 @@ ros2 bag record -o slam_debug \
 - [Nav2 Humble：Speed Filterのマスクと速度上限](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/plugins/costmap_filters/speed_filter.cpp)
 - [Nav2 Humble：SpeedLimitメッセージ](https://github.com/ros-navigation/navigation2/blob/humble/nav2_msgs/msg/SpeedLimit.msg)
 - [Nav2 Humble：ObstacleLayerのMarking・Clearing](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/plugins/obstacle_layer.cpp)
+- [Nav2 Humble：VoxelLayerの3D Raytraceと2Dコスト更新](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/plugins/voxel_layer.cpp)
+- [Nav2 Humble：観測バッファの保持と鮮度判定](https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/src/observation_buffer.cpp)
+- [STVL Humble：入力観測の保持・読み出し後の消去・鮮度判定](https://github.com/SteveMacenski/spatio_temporal_voxel_layer/blob/humble/spatio_temporal_voxel_layer/src/measurement_buffer.cpp)
 - [Nav2 Humble：Global/Local Costmapの設定例](https://github.com/ros-navigation/navigation2/blob/humble/nav2_bringup/params/nav2_params.yaml)
 - [Nav2 Humble：再計画とRecoveryのBehavior Tree](https://github.com/ros-navigation/navigation2/blob/humble/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml)
 - [Spatio-Temporal Voxel Layer（STVL）](https://github.com/SteveMacenski/spatio_temporal_voxel_layer)

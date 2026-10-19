@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="350" viewBox="0 0 840 350" role="img" aria-labelledby="title desc">
+<title id="title">Aを再観測できないまま時間が進む</title><desc id="desc">3行は観測消去ありのObstacleLayer、登録のみのObstacleLayer、線形寿命2秒のSTVL。青は保持、緑は空き観測による消去、灰色は期限切れによる消去。</desc>
+<defs><pattern id="unknown" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#e2e6eb"/><path d="M-2 2L2-2M0 8L8 0M6 10L10 6" stroke="#9ba7b6" stroke-width="1.2"/></pattern></defs>
+<rect width="840" height="350" fill="#f5f7fa" rx="10"/>
+<text x="420" y="29" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#25364b">Aを再観測できないまま時間が進む</text>
+<text x="313.0" y="63" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">0.0秒</text>
+<text x="313.0" y="84" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#66788d">Aを登録</text>
+<text x="452.0" y="63" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">0.5秒</text>
+<text x="452.0" y="84" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#66788d">Aの再登録なし</text>
+<text x="591.0" y="63" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">1.0秒</text>
+<text x="591.0" y="84" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#66788d">Aの再登録なし</text>
+<text x="730.0" y="63" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#25364b">2.2秒</text>
+<text x="730.0" y="84" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#66788d">Aの再登録なし</text>
+<text x="18" y="125" text-anchor="start" font-family="sans-serif" font-size="20" fill="#25364b">A：観測で消す</text>
+<text x="18" y="147" text-anchor="start" font-family="sans-serif" font-size="13" fill="#66788d">ObstacleLayer / clearing=true</text>
+<rect x="250" y="106" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="313.0" y="135" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<rect x="389" y="106" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="452.0" y="135" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<rect x="528" y="106" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="591.0" y="135" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<rect x="667" y="106" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="730.0" y="135" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<text x="18" y="192" text-anchor="start" font-family="sans-serif" font-size="20" fill="#25364b">B：登録のみ</text>
+<text x="18" y="214" text-anchor="start" font-family="sans-serif" font-size="13" fill="#66788d">ObstacleLayer / clearing=false</text>
+<rect x="250" y="173" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="313.0" y="202" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<rect x="389" y="173" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="452.0" y="202" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<rect x="528" y="173" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="591.0" y="202" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<rect x="667" y="173" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="730.0" y="202" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<text x="18" y="259" text-anchor="start" font-family="sans-serif" font-size="20" fill="#25364b">C：2秒の寿命</text>
+<text x="18" y="281" text-anchor="start" font-family="sans-serif" font-size="13" fill="#66788d">STVL / 線形・加速なし</text>
+<rect x="250" y="240" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="313.0" y="269" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<rect x="389" y="240" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="452.0" y="269" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<rect x="528" y="240" width="126" height="46" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="591.0" y="269" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#ffffff">Aを保持</text>
+<rect x="667" y="240" width="126" height="46" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" rx="6"/>
+<text x="730.0" y="269" text-anchor="middle" font-family="sans-serif" font-size="19" fill="#25364b">期限で消去</text>
+<rect x="33" y="319" width="17" height="17" fill="#397bb6" stroke="#b8c3cf" stroke-width="0.6" />
+<text x="60" y="333" text-anchor="start" font-family="sans-serif" font-size="15" fill="#25364b">記録が残る</text>
+<rect x="250" y="319" width="17" height="17" fill="#d7eee7" stroke="#b8c3cf" stroke-width="0.6" />
+<text x="277" y="333" text-anchor="start" font-family="sans-serif" font-size="15" fill="#25364b">空き観測で更新</text>
+<rect x="490" y="319" width="17" height="17" fill="#e6ebf1" stroke="#b8c3cf" stroke-width="0.6" />
+<text x="517" y="333" text-anchor="start" font-family="sans-serif" font-size="15" fill="#25364b">古い記録を破棄</text>
+</svg>

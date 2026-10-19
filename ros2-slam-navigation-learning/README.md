@@ -51,7 +51,7 @@
 | 6.4 | 3D地図・2D地図の利用先、実空間とコストの格子 |
 | 6.5 | 大域と局所、移動窓、PlannerとControllerの関係 |
 | 6.6 | 保存地図・観測レイヤー・合成結果・Inflationの4段階 |
-| 6.7 | 光線による登録と消去、新しい観測がない場合 |
+| [6.7](index.html#costmap-retention-policies) | 空き観測で消す・保持する・時間で消す設定、STVLの視野内加速、消去時系列の比較 |
 | [6.8](index.html#costmap-radius-example) | 半径0.45 m・膨張0.80 m・係数3.0の数値例と通路幅、膨張範囲の重なり、距離コスト曲線 |
 | 6.10 | 局所での停止と、大域への反映・再計画 |
 | [6.13～6.15](index.html#costmap-parameters) | 主要パラメータ、広場・狭路の速度変化、RPP・Speed Filter・動的Inflation |
@@ -66,6 +66,7 @@
 7. 台車を局所的に避ける場合と、通路閉塞で大域的に迂回する場合
 8. `inflation_radius`と`cost_scaling_factor`の違い、狭路の通行可否と速度調整
 9. RPPの近接減速、区域ごとの速度制限、走行中のInflation変更の範囲と条件
+10. 障害物の保持・観測消去・時間減衰の設定例、観測バッファと寿命、複数レイヤーに残る理由
 
 ## 主な機能
 
@@ -98,6 +99,7 @@
 | `scripts/generate_map_lifecycle_figures.py` | レイヤー合成・観測消去・移動窓・STVLの図の再生成 |
 | `scripts/generate_costmap_tuning_figures.py` | Inflationの比較・距離コスト曲線・狭路の速度変化の図の再生成 |
 | `scripts/generate_costmap_radius_example.py` | 半径0.45 mの数値例と通路幅比較の図の再生成（NumPy・Matplotlib・日本語フォントが必要） |
+| `scripts/generate_costmap_retention_figures.py` | 観測による消去・保持・STVLの期限切れを比べる時系列図（Python標準ライブラリのみ） |
 | `course-template.html` | 教材HTMLを再生成するためのPandocテンプレート |
 | `licenses` | 同梱フォント・描画ライブラリのライセンス |
 | `VERSION.txt` | ビルド情報 |
@@ -109,6 +111,8 @@
 Inflationと速度の図は`python3 scripts/generate_costmap_tuning_figures.py`で再生成します。Humbleの式に沿った説明図で、実機やNav2シミュレーションの計測結果ではありません。
 
 半径0.45 mの2枚の図は`python3 scripts/generate_costmap_radius_example.py`で再生成します。NumPy、Matplotlib、Ubuntu/Debianの`fonts-noto-cjk`を使用し、日本語の文字形をSVG内へ埋め込むため、閲覧側でのフォント追加は不要です。再生成したSVGは単一ファイル版にも反映します。
+
+障害物を保持・消去する時系列図は`python3 scripts/generate_costmap_retention_figures.py`で再生成します。観測が来ない場合と、空きを示す光線が来た場合を同じ条件で比較しています。
 
 ## 対象
 
