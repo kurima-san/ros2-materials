@@ -2587,7 +2587,7 @@ white-space: pre-wrap;
 <p>対象環境：Ubuntu 22.04 / ROS 2 Humble<br />
 情報確認日：2026-09-17<br />
 オドメトリ・TF章更新日：2026-10-13<br>
-コストマップ章更新日：2026-10-19</p>
+コストマップ章更新日：2026-11-16</p>
 <section id="この教材の目的" class="level2">
 <h2>この教材の目的</h2>
 <p>この教材は、SLAM内部の数式や最適化手法を詳しく学ぶことよりも、次の要素をROS
@@ -5249,6 +5249,95 @@ Pursuit（RPP）</strong>は経路追従、減速、前方の衝突確認が中�
 Costmapがあれば、どのControllerでも自動で横へ回り込む」とは限らない。</p>
 <p>動ける候補がなければ、そのまま衝突する指令を選ばせるのではなく、停止や制御失敗として扱い、BTの待機・再計画・Recoveryへ進む。実際の動作はプラグイン、失敗の許容時間、BTに依存する。CostmapのClearは記憶の消去であり、現実の障害物を取り除く操作ではない。</p>
 <p>通常のコストマップは現在・最近の占有を表す。人の未来位置を予測して先回りする機能まで、この仕組みだけで得られるわけではない。必要なら追跡・予測を扱う追加機能と組み合わせる。計画用のCostmapと、遅延・センサー停止も扱う実機の停止系の関係は第11章で扱う。</p>
+<section id="costmap-plan-local-plan-cmd-vel" class="level4">
+<h4>plan・local_plan・cmd_velの関係</h4>
+<p><strong><code>/plan</code>は目的地までの大域経路、<code>/local_plan</code>はDWBが選んだ短時間の予測軌道、<code>/cmd_vel</code>はロボットへ送る速度指令である。</strong>
+前の2つは位置・姿勢の列であり、速度指令そのものではない。</p>
+<pre class="mermaid"><code>flowchart TD
+    P[&quot;Plannerが目標までの経路を計算&lt;br/&gt;公開: /plan&quot;] --&gt; B[&quot;BTなどの実行側が経路を渡す&quot;]
+    B --&gt;|FollowPathアクション| D[&quot;Controller Server内のDWB&lt;br/&gt;候補軌道を評価・選択&quot;]
+    C[&quot;Local Costmap&lt;br/&gt;障害物・膨張コスト&quot;] --&gt; D
+    E[&quot;TF・Odometry&lt;br/&gt;現在の姿勢・速度&quot;] --&gt; D
+    D --&gt; L[&quot;選んだ予測軌道&lt;br/&gt;公開: /local_plan&quot;]
+    D --&gt; V[&quot;Controller Serverの速度指令&lt;br/&gt;/cmd_vel_nav&quot;]
+    V --&gt; S[&quot;Velocity Smoother&quot;]
+    S --&gt; M[&quot;Collision Monitor&quot;]
+    M --&gt; O[&quot;最終速度指令&lt;br/&gt;/cmd_vel&quot;]
+    O --&gt; R[&quot;ロボットの走行制御&quot;]</code></pre>
+<p>図はVelocity SmootherとCollision
+Monitorを順につないだ構成例である。トピック名は名前空間・リマップ・Nav2の起動設定によって変わる。特に<code>/cmd_vel_nav</code>は、この接続例でController
+Serverの出力に付けた名前であり、必ずこの名前になるわけではない。</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>出力</th>
+<th>内容・型（Humbleの例）</th>
+<th>読み方</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>/plan</code></td>
+<td>Plannerが計算した大域経路、<code>nav_msgs/msg/Path</code></td>
+<td>目的地まで、どの通路を通るか。再計画で更新される</td>
+</tr>
+<tr class="even">
+<td><code>/local_plan</code></td>
+<td>DWBが選択した軌道、<code>nav_msgs/msg/Path</code></td>
+<td>現在位置から短時間先までどう動く見込みか。可視化用であり、実際に走った履歴ではない</td>
+</tr>
+<tr class="odd">
+<td><code>/cmd_vel_nav</code></td>
+<td>Controller
+Serverが出す並進・角速度、<code>geometry_msgs/msg/Twist</code></td>
+<td>次の制御周期に向けて、どの速さで進み・曲がるか</td>
+</tr>
+<tr class="even">
+<td><code>/cmd_vel</code></td>
+<td>平滑化・衝突監視を通した最終速度指令、<code>geometry_msgs/msg/Twist</code></td>
+<td>ロボットの走行制御が受け取る指令。実測速度はOdometryなどで確認する</td>
+</tr>
+</tbody>
+</table>
+<p>Plannerの経路はBTなどを介して<code>FollowPath</code>アクションの目標としてController
+Serverへ渡る。<strong>DWBが<code>/plan</code>トピックを直接購読して追従する、という接続ではない。</strong>
+また、DWBは選んだ候補から予測軌道と速度指令を出すため、<code>/local_plan</code>を別ノードが読み直して<code>/cmd_vel</code>へ変換する流れでもない。HumbleのDWBでは<code>publish_local_plan</code>が有効なときに局所軌道を公開する。</p>
+<p>Velocity
+Smootherは速度・加減速の制約に沿って指令を平滑化する。Collision
+Monitorはセンサー情報と設定した監視領域などから減速・停止を判断する。このため、最終指令がDWBの選択した速度と異なり、実際の動きが<code>/local_plan</code>の予測から変わることもある。</p>
+</section>
+<section id="costmap-dwa-dwb" class="level4">
+<h4>DWAの機能とDWBとの関係</h4>
+<p><strong>DWA（Dynamic Window
+Approach）は、現在速度から短時間で到達できる速度の範囲を調べ、近い未来の動きを予測して、次に出す速度を選ぶ局所制御手法である。</strong>
+目的地までの大域経路を一から作るPlannerとは役割が異なる。</p>
+<ol type="1">
+<li><strong>速度候補を絞る：</strong>
+現在速度、速度上限、加減速能力、制御間隔から、次に到達できる速度の範囲（Dynamic
+Window）を作る。差動二輪なら主に並進速度<code>v</code>と角速度<code>ω</code>を候補にする。</li>
+<li><strong>短時間の軌道を予測する：</strong>
+各候補速度で進んだ場合の位置・姿勢を計算する。直進、左右へ曲がる動きなどを比較する。</li>
+<li><strong>安全性と進みやすさを評価する：</strong>
+障害物との衝突を避け、目標方向・障害物との距離・前進速度などを評価する。原典のDWAは、障害物の手前で停止できる速度かという許容性も考慮する。</li>
+<li><strong>選択して繰り返す：</strong>
+最も良い候補の速度を指令し、次の制御周期には新しい姿勢・速度・障害物情報で再計算する。予測軌道全体を一度に実行するわけではない。</li>
+</ol>
+<p>Nav2の<strong>DWB（DWB
+Controller）はDWA系の考え方を発展させ、軌道生成器と評価関数（Critic）をプラグイン化したController</strong>である。例えば<code>PathDist</code>や<code>PathAlign</code>で大域経路への追従、<code>GoalDist</code>で目標への近さ、<code>BaseObstacle</code>などで障害物コストを評価し、有効な候補の中から重み付き合計コストが小さいものを選ぶ。</p>
+<p>DWBのすべての設定が原典のDWAと同じ動作になるわけではない。Humbleでは標準の<code>StandardTrajectoryGenerator</code>と、DWA型に速度探索範囲を制限する<code>LimitedAccelGenerator</code>を区別する。<code>sim_time</code>は予測時間、<code>vx_samples</code>・<code>vtheta_samples</code>は候補数、Criticの<code>scale</code>は評価の重みである。衝突判定や停止余裕も、生成器・Critic・機体設定に応じて確認する。</p>
+<p>例えば大域経路の直前に台車が現れた場合、DWBはLocal
+Costmapを参照して衝突する直進候補を除き、通れる旋回候補を選ぶ。<code>/plan</code>が同じでも、<code>/local_plan</code>と速度指令は変わり得る。通路全体が塞がって局所的に回避できない場合は、大域の再計画が必要になる。</p>
+<p>参考：<a
+href="https://docs.nav2.org/configuration/packages/configuring-dwb-controller.html">Nav2
+DWB Controller</a>、<a
+href="https://docs.nav2.org/configuration/packages/dwb-plugins/trajectory_generators.html">DWBの軌道生成器</a>、<a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_dwb_controller/dwb_core/src/dwb_local_planner.cpp">HumbleのDWB出力処理</a>。</p>
+</section>
 </section>
 <section id="costmap-corridor" class="level3">
 <h3>6.10 時系列の具体例：通路に台車が現れたら</h3>

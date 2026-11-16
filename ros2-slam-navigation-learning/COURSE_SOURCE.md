@@ -3,7 +3,7 @@
 対象環境：Ubuntu 22.04 / ROS 2 Humble  
 情報確認日：2026-09-17<br>
 オドメトリ・TF章更新日：2026-10-13<br>
-コストマップ章更新日：2026-10-19
+コストマップ章更新日：2026-11-16
 
 ## この教材の目的
 
@@ -1473,6 +1473,54 @@ flowchart TB
 動ける候補がなければ、そのまま衝突する指令を選ばせるのではなく、停止や制御失敗として扱い、BTの待機・再計画・Recoveryへ進む。実際の動作はプラグイン、失敗の許容時間、BTに依存する。CostmapのClearは記憶の消去であり、現実の障害物を取り除く操作ではない。
 
 通常のコストマップは現在・最近の占有を表す。人の未来位置を予測して先回りする機能まで、この仕組みだけで得られるわけではない。必要なら追跡・予測を扱う追加機能と組み合わせる。計画用のCostmapと、遅延・センサー停止も扱う実機の停止系の関係は第11章で扱う。
+
+#### plan・local_plan・cmd_velの関係 {#costmap-plan-local-plan-cmd-vel}
+
+**`/plan`は目的地までの大域経路、`/local_plan`はDWBが選んだ短時間の予測軌道、`/cmd_vel`はロボットへ送る速度指令である。** 前の2つは位置・姿勢の列であり、速度指令そのものではない。
+
+```mermaid
+flowchart TD
+    P["Plannerが目標までの経路を計算<br/>公開: /plan"] --> B["BTなどの実行側が経路を渡す"]
+    B -->|FollowPathアクション| D["Controller Server内のDWB<br/>候補軌道を評価・選択"]
+    C["Local Costmap<br/>障害物・膨張コスト"] --> D
+    E["TF・Odometry<br/>現在の姿勢・速度"] --> D
+    D --> L["選んだ予測軌道<br/>公開: /local_plan"]
+    D --> V["Controller Serverの速度指令<br/>/cmd_vel_nav"]
+    V --> S["Velocity Smoother"]
+    S --> M["Collision Monitor"]
+    M --> O["最終速度指令<br/>/cmd_vel"]
+    O --> R["ロボットの走行制御"]
+```
+
+図はVelocity SmootherとCollision Monitorを順につないだ構成例である。トピック名は名前空間・リマップ・Nav2の起動設定によって変わる。特に`/cmd_vel_nav`は、この接続例でController Serverの出力に付けた名前であり、必ずこの名前になるわけではない。
+
+| 出力 | 内容・型（Humbleの例） | 読み方 |
+|---|---|---|
+| `/plan` | Plannerが計算した大域経路、`nav_msgs/msg/Path` | 目的地まで、どの通路を通るか。再計画で更新される |
+| `/local_plan` | DWBが選択した軌道、`nav_msgs/msg/Path` | 現在位置から短時間先までどう動く見込みか。可視化用であり、実際に走った履歴ではない |
+| `/cmd_vel_nav` | Controller Serverが出す並進・角速度、`geometry_msgs/msg/Twist` | 次の制御周期に向けて、どの速さで進み・曲がるか |
+| `/cmd_vel` | 平滑化・衝突監視を通した最終速度指令、`geometry_msgs/msg/Twist` | ロボットの走行制御が受け取る指令。実測速度はOdometryなどで確認する |
+
+Plannerの経路はBTなどを介して`FollowPath`アクションの目標としてController Serverへ渡る。**DWBが`/plan`トピックを直接購読して追従する、という接続ではない。** また、DWBは選んだ候補から予測軌道と速度指令を出すため、`/local_plan`を別ノードが読み直して`/cmd_vel`へ変換する流れでもない。HumbleのDWBでは`publish_local_plan`が有効なときに局所軌道を公開する。
+
+Velocity Smootherは速度・加減速の制約に沿って指令を平滑化する。Collision Monitorはセンサー情報と設定した監視領域などから減速・停止を判断する。このため、最終指令がDWBの選択した速度と異なり、実際の動きが`/local_plan`の予測から変わることもある。
+
+#### DWAの機能とDWBとの関係 {#costmap-dwa-dwb}
+
+**DWA（Dynamic Window Approach）は、現在速度から短時間で到達できる速度の範囲を調べ、近い未来の動きを予測して、次に出す速度を選ぶ局所制御手法である。** 目的地までの大域経路を一から作るPlannerとは役割が異なる。
+
+1. **速度候補を絞る：** 現在速度、速度上限、加減速能力、制御間隔から、次に到達できる速度の範囲（Dynamic Window）を作る。差動二輪なら主に並進速度`v`と角速度`ω`を候補にする。
+2. **短時間の軌道を予測する：** 各候補速度で進んだ場合の位置・姿勢を計算する。直進、左右へ曲がる動きなどを比較する。
+3. **安全性と進みやすさを評価する：** 障害物との衝突を避け、目標方向・障害物との距離・前進速度などを評価する。原典のDWAは、障害物の手前で停止できる速度かという許容性も考慮する。
+4. **選択して繰り返す：** 最も良い候補の速度を指令し、次の制御周期には新しい姿勢・速度・障害物情報で再計算する。予測軌道全体を一度に実行するわけではない。
+
+Nav2の**DWB（DWB Controller）はDWA系の考え方を発展させ、軌道生成器と評価関数（Critic）をプラグイン化したController**である。例えば`PathDist`や`PathAlign`で大域経路への追従、`GoalDist`で目標への近さ、`BaseObstacle`などで障害物コストを評価し、有効な候補の中から重み付き合計コストが小さいものを選ぶ。
+
+DWBのすべての設定が原典のDWAと同じ動作になるわけではない。Humbleでは標準の`StandardTrajectoryGenerator`と、DWA型に速度探索範囲を制限する`LimitedAccelGenerator`を区別する。`sim_time`は予測時間、`vx_samples`・`vtheta_samples`は候補数、Criticの`scale`は評価の重みである。衝突判定や停止余裕も、生成器・Critic・機体設定に応じて確認する。
+
+例えば大域経路の直前に台車が現れた場合、DWBはLocal Costmapを参照して衝突する直進候補を除き、通れる旋回候補を選ぶ。`/plan`が同じでも、`/local_plan`と速度指令は変わり得る。通路全体が塞がって局所的に回避できない場合は、大域の再計画が必要になる。
+
+参考：[Nav2 DWB Controller](https://docs.nav2.org/configuration/packages/configuring-dwb-controller.html)、[DWBの軌道生成器](https://docs.nav2.org/configuration/packages/dwb-plugins/trajectory_generators.html)、[HumbleのDWB出力処理](https://github.com/ros-navigation/navigation2/blob/humble/nav2_dwb_controller/dwb_core/src/dwb_local_planner.cpp)。
 
 ### 6.10 時系列の具体例：通路に台車が現れたら {#costmap-corridor}
 
