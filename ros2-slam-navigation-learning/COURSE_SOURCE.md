@@ -1522,6 +1522,81 @@ DWBのすべての設定が原典のDWAと同じ動作になるわけではな�
 
 参考：[Nav2 DWB Controller](https://docs.nav2.org/configuration/packages/configuring-dwb-controller.html)、[DWBの軌道生成器](https://docs.nav2.org/configuration/packages/dwb-plugins/trajectory_generators.html)、[HumbleのDWB出力処理](https://github.com/ros-navigation/navigation2/blob/humble/nav2_dwb_controller/dwb_core/src/dwb_local_planner.cpp)。
 
+#### Collision Monitorの機能と速度指令への介入 {#costmap-collision-monitor}
+
+**Nav2のCollision Monitorは、センサーの観測を直接使ってロボット周囲を監視し、入力された速度指令を減速・停止させるノードである。** PlannerやControllerの経路計算とは別に動作し、Costmapへの障害物反映や大域の再計画を待たずに、直近の観測に応じて指令へ介入できる。迂回経路を作ったり、自分で目的地へ向かう速度を生成したりする役割ではない。
+
+```mermaid
+flowchart TD
+    S["LaserScan・PointCloud2・Range"] --> T["TFで機体基準へ変換"]
+    T --> C["Collision Monitor<br/>監視領域・衝突までの予測時間を評価"]
+    V["Velocity Smootherの出力<br/>/cmd_vel_smoothed"] --> C
+    C -->|介入条件なし| P["入力速度を通す"]
+    C -->|障害物が近い| D["速度を下げる"]
+    C -->|停止領域に侵入| Z["ゼロ速度にする"]
+    P --> O["最終出力 /cmd_vel"]
+    D --> O
+    Z --> O
+```
+
+監視には機体座標系の多角形や円を使う。例えば外側に減速領域、内側に停止領域を設けると、障害物が近づくにつれて「通常走行 → 減速 → 停止」と段階的に介入できる。センサーの点数を条件にするため、点の密度や細い障害物の見え方も設定に影響する。
+
+| 動作モデル | 判断するもの | 速度指令への作用 |
+|---|---|---|
+| `stop` | 停止領域内の観測点数 | 条件を満たすと並進・回転をゼロにする |
+| `slowdown` | 減速領域内の観測点数 | 入力速度に`slowdown_ratio`を掛ける。0.3なら元の30%の速度 |
+| `approach` | 入力速度で動いた場合に、機体形状が観測点へ衝突するまでの予測時間 | `time_before_collision`の時間を確保するよう速度を下げる |
+
+この教材の対象であるHumbleの実装では、上の3モデルを扱う。新しいNav2には速度上限を適用する`limit`や速度に応じた領域切り替えなどもあるが、使える機能・パラメータ名は導入済みのバージョンに合わせる。`approach`はロボット自身の動きを予測する仕組みであり、人や台車の未来の移動まで追跡・予測するものではない。
+
+#### 減速領域と停止領域の設定例 {#costmap-collision-monitor-example}
+
+次はHumble用の説明例である。機体基準の前方を+x、左側を+yとし、座標はmで指定する。寸法は実機の推奨値ではなく、機体の張り出し・最大速度・制動距離・観測と制御の遅延に合わせて決める。
+
+```yaml
+collision_monitor:
+  ros__parameters:
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+    transform_tolerance: 0.2
+    source_timeout: 0.5
+    polygons: ["StopZone", "SlowZone"]
+    StopZone:
+      type: "polygon"
+      points: [0.6, 0.4, 0.6, -0.4, -0.4, -0.4, -0.4, 0.4]
+      action_type: "stop"
+      max_points: 3
+      visualize: true
+      polygon_pub_topic: "stop_zone"
+    SlowZone:
+      type: "polygon"
+      points: [1.2, 0.6, 1.2, -0.6, -0.5, -0.6, -0.5, 0.6]
+      action_type: "slowdown"
+      max_points: 3
+      slowdown_ratio: 0.3
+      visualize: true
+      polygon_pub_topic: "slow_zone"
+    observation_sources: ["scan"]
+    scan:
+      type: "scan"
+      topic: "/scan"
+      enabled: true
+```
+
+このHumble実装の`stop`・`slowdown`では、領域内の点数が`max_points`を**超える**と作動するため、上の例なら4点以上が条件になる。新しい版の設定例にある`min_points`を、そのままHumbleへコピーしない。例えば入力が前進0.4 m/sなら、外側の領域だけで条件を満たすと0.12 m/s、内側でも条件を満たすと0 m/sとなる。複数の領域が作動すると、より強く速度を制限する結果が採用され、停止が優先される。
+
+YAMLの定義に加え、Collision Monitorノードを起動してLifecycleをActivateする必要がある。接続は`Controller → Velocity Smoother → Collision Monitor → ロボット`とし、Smootherの出力を上の`cmd_vel_smoothed`へ合わせる。最終`cmd_vel`へControllerや別の速度源が直接Publishすると監視を迂回するので、操作系も含めた指令経路を確認する。
+
+#### Costmapや非常停止との役割の違い {#costmap-collision-monitor-role}
+
+CostmapとControllerは「どこを通り、どう動くか」を決め、Collision Monitorは「その速度指令を今通してよいか」を判断する。監視条件がなくなれば再び入力速度を通すため、停止を保持して手動解除する非常停止とは動作が異なる。ROS上のソフトウェアによる衝突監視であり、安全認証されたセンサー・安全回路による非常停止を置き換えるものではない。
+
+特に**センサーの更新停止と、障害物がなくなった状態を区別する。** 参照したHumble実装では、`source_timeout`を超えた観測源は無効として無視されるため、この値を設定するだけでセンサー断時の停止を保証できない。新しい版と挙動が異なる点でもある。実機ではセンサー鮮度の監視と、走行制御側の速度指令Timeoutを設け、入力停止・TF欠落・ノード停止時の動作を確認する。歩行ロボットではゼロ速度を受けてから安全に停止するまでの歩容制御も含めて、[第11章](#115-safety-supervisorと停止距離)の停止系と組み合わせる。
+
+参考：[Nav2 Collision Monitor](https://docs.nav2.org/configuration/packages/collision_monitor/configuring-collision-monitor-node.html)、[Humbleの設定例](https://github.com/ros-navigation/navigation2/blob/humble/nav2_collision_monitor/params/collision_monitor_params.yaml)、[Humbleの速度介入処理](https://github.com/ros-navigation/navigation2/blob/humble/nav2_collision_monitor/src/collision_monitor_node.cpp)、[Humbleの観測鮮度判定](https://github.com/ros-navigation/navigation2/blob/humble/nav2_collision_monitor/src/source.cpp)。
+
 ### 6.10 時系列の具体例：通路に台車が現れたら {#costmap-corridor}
 
 目的地へ向かう通路Aと、少し遠回りになる通路Bがある。保存地図ではどちらも通れるが、走行中にAへ台車が置かれたとする。

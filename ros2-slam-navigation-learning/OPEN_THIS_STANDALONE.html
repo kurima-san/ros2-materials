@@ -5338,6 +5338,109 @@ DWB Controller</a>、<a
 href="https://docs.nav2.org/configuration/packages/dwb-plugins/trajectory_generators.html">DWBの軌道生成器</a>、<a
 href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_dwb_controller/dwb_core/src/dwb_local_planner.cpp">HumbleのDWB出力処理</a>。</p>
 </section>
+<section id="costmap-collision-monitor" class="level4">
+<h4>Collision Monitorの機能と速度指令への介入</h4>
+<p><strong>Nav2のCollision
+Monitorは、センサーの観測を直接使ってロボット周囲を監視し、入力された速度指令を減速・停止させるノードである。</strong>
+PlannerやControllerの経路計算とは別に動作し、Costmapへの障害物反映や大域の再計画を待たずに、直近の観測に応じて指令へ介入できる。迂回経路を作ったり、自分で目的地へ向かう速度を生成したりする役割ではない。</p>
+<pre class="mermaid"><code>flowchart TD
+    S[&quot;LaserScan・PointCloud2・Range&quot;] --&gt; T[&quot;TFで機体基準へ変換&quot;]
+    T --&gt; C[&quot;Collision Monitor&lt;br/&gt;監視領域・衝突までの予測時間を評価&quot;]
+    V[&quot;Velocity Smootherの出力&lt;br/&gt;/cmd_vel_smoothed&quot;] --&gt; C
+    C --&gt;|介入条件なし| P[&quot;入力速度を通す&quot;]
+    C --&gt;|障害物が近い| D[&quot;速度を下げる&quot;]
+    C --&gt;|停止領域に侵入| Z[&quot;ゼロ速度にする&quot;]
+    P --&gt; O[&quot;最終出力 /cmd_vel&quot;]
+    D --&gt; O
+    Z --&gt; O</code></pre>
+<p>監視には機体座標系の多角形や円を使う。例えば外側に減速領域、内側に停止領域を設けると、障害物が近づくにつれて「通常走行
+→ 減速 →
+停止」と段階的に介入できる。センサーの点数を条件にするため、点の密度や細い障害物の見え方も設定に影響する。</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>動作モデル</th>
+<th>判断するもの</th>
+<th>速度指令への作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>stop</code></td>
+<td>停止領域内の観測点数</td>
+<td>条件を満たすと並進・回転をゼロにする</td>
+</tr>
+<tr class="even">
+<td><code>slowdown</code></td>
+<td>減速領域内の観測点数</td>
+<td>入力速度に<code>slowdown_ratio</code>を掛ける。0.3なら元の30%の速度</td>
+</tr>
+<tr class="odd">
+<td><code>approach</code></td>
+<td>入力速度で動いた場合に、機体形状が観測点へ衝突するまでの予測時間</td>
+<td><code>time_before_collision</code>の時間を確保するよう速度を下げる</td>
+</tr>
+</tbody>
+</table>
+<p>この教材の対象であるHumbleの実装では、上の3モデルを扱う。新しいNav2には速度上限を適用する<code>limit</code>や速度に応じた領域切り替えなどもあるが、使える機能・パラメータ名は導入済みのバージョンに合わせる。<code>approach</code>はロボット自身の動きを予測する仕組みであり、人や台車の未来の移動まで追跡・予測するものではない。</p>
+</section>
+<section id="costmap-collision-monitor-example" class="level4">
+<h4>減速領域と停止領域の設定例</h4>
+<p>次はHumble用の説明例である。機体基準の前方を+x、左側を+yとし、座標はmで指定する。寸法は実機の推奨値ではなく、機体の張り出し・最大速度・制動距離・観測と制御の遅延に合わせて決める。</p>
+<pre class="yaml"><code>collision_monitor:
+  ros__parameters:
+    base_frame_id: &quot;base_link&quot;
+    odom_frame_id: &quot;odom&quot;
+    cmd_vel_in_topic: &quot;cmd_vel_smoothed&quot;
+    cmd_vel_out_topic: &quot;cmd_vel&quot;
+    transform_tolerance: 0.2
+    source_timeout: 0.5
+    polygons: [&quot;StopZone&quot;, &quot;SlowZone&quot;]
+    StopZone:
+      type: &quot;polygon&quot;
+      points: [0.6, 0.4, 0.6, -0.4, -0.4, -0.4, -0.4, 0.4]
+      action_type: &quot;stop&quot;
+      max_points: 3
+      visualize: true
+      polygon_pub_topic: &quot;stop_zone&quot;
+    SlowZone:
+      type: &quot;polygon&quot;
+      points: [1.2, 0.6, 1.2, -0.6, -0.5, -0.6, -0.5, 0.6]
+      action_type: &quot;slowdown&quot;
+      max_points: 3
+      slowdown_ratio: 0.3
+      visualize: true
+      polygon_pub_topic: &quot;slow_zone&quot;
+    observation_sources: [&quot;scan&quot;]
+    scan:
+      type: &quot;scan&quot;
+      topic: &quot;/scan&quot;
+      enabled: true</code></pre>
+<p>このHumble実装の<code>stop</code>・<code>slowdown</code>では、領域内の点数が<code>max_points</code>を<strong>超える</strong>と作動するため、上の例なら4点以上が条件になる。新しい版の設定例にある<code>min_points</code>を、そのままHumbleへコピーしない。例えば入力が前進0.4
+m/sなら、外側の領域だけで条件を満たすと0.12 m/s、内側でも条件を満たすと0
+m/sとなる。複数の領域が作動すると、より強く速度を制限する結果が採用され、停止が優先される。</p>
+<p>YAMLの定義に加え、Collision
+Monitorノードを起動してLifecycleをActivateする必要がある。接続は<code>Controller → Velocity Smoother → Collision Monitor → ロボット</code>とし、Smootherの出力を上の<code>cmd_vel_smoothed</code>へ合わせる。最終<code>cmd_vel</code>へControllerや別の速度源が直接Publishすると監視を迂回するので、操作系も含めた指令経路を確認する。</p>
+</section>
+<section id="costmap-collision-monitor-role" class="level4">
+<h4>Costmapや非常停止との役割の違い</h4>
+<p>CostmapとControllerは「どこを通り、どう動くか」を決め、Collision
+Monitorは「その速度指令を今通してよいか」を判断する。監視条件がなくなれば再び入力速度を通すため、停止を保持して手動解除する非常停止とは動作が異なる。ROS上のソフトウェアによる衝突監視であり、安全認証されたセンサー・安全回路による非常停止を置き換えるものではない。</p>
+<p>特に<strong>センサーの更新停止と、障害物がなくなった状態を区別する。</strong>
+参照したHumble実装では、<code>source_timeout</code>を超えた観測源は無効として無視されるため、この値を設定するだけでセンサー断時の停止を保証できない。新しい版と挙動が異なる点でもある。実機ではセンサー鮮度の監視と、走行制御側の速度指令Timeoutを設け、入力停止・TF欠落・ノード停止時の動作を確認する。歩行ロボットではゼロ速度を受けてから安全に停止するまでの歩容制御も含めて、<a
+href="#115-safety-supervisorと停止距離">第11章</a>の停止系と組み合わせる。</p>
+<p>参考：<a
+href="https://docs.nav2.org/configuration/packages/collision_monitor/configuring-collision-monitor-node.html">Nav2
+Collision Monitor</a>、<a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_collision_monitor/params/collision_monitor_params.yaml">Humbleの設定例</a>、<a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_collision_monitor/src/collision_monitor_node.cpp">Humbleの速度介入処理</a>、<a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_collision_monitor/src/source.cpp">Humbleの観測鮮度判定</a>。</p>
+</section>
 </section>
 <section id="costmap-corridor" class="level3">
 <h3>6.10 時系列の具体例：通路に台車が現れたら</h3>
