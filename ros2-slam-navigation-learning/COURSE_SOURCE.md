@@ -3,7 +3,7 @@
 対象環境：Ubuntu 22.04 / ROS 2 Humble  
 情報確認日：2026-09-17<br>
 オドメトリ・TF章更新日：2026-10-13<br>
-コストマップ章更新日：2026-11-16
+コストマップ章更新日：2026-11-23
 
 ## この教材の目的
 
@@ -1504,6 +1504,35 @@ flowchart TD
 Plannerの経路はBTなどを介して`FollowPath`アクションの目標としてController Serverへ渡る。**DWBが`/plan`トピックを直接購読して追従する、という接続ではない。** また、DWBは選んだ候補から予測軌道と速度指令を出すため、`/local_plan`を別ノードが読み直して`/cmd_vel`へ変換する流れでもない。HumbleのDWBでは`publish_local_plan`が有効なときに局所軌道を公開する。
 
 Velocity Smootherは速度・加減速の制約に沿って指令を平滑化する。Collision Monitorはセンサー情報と設定した監視領域などから減速・停止を判断する。このため、最終指令がDWBの選択した速度と異なり、実際の動きが`/local_plan`の予測から変わることもある。
+
+#### Local Costmap上のゴールはGlobal Pathからどう決まるか {#costmap-local-goal-from-path}
+
+**Local Costmapが独自にゴールを作るわけではない。** ControllerがGlobal Pathの近傍部分を取り出し、局所的な追従・評価の対象にする。DWBでは「局所評価の目標」「最終ゴール」「選択した予測軌道の終端」を区別する。
+
+| 対象 | DWB・Humbleでの意味 |
+|---|---|
+| 最終ゴール | FollowPathで受け取ったPath全体の最後の姿勢。Controller Serverが保存し、Local Costmapの座標へ変換してGoalCheckerへ渡す |
+| 変換済みの近傍経路 | Global Pathから現在位置付近を切り出し、Local Costmapのglobal_frameへ変換した経路。`/transformed_global_plan`として可視化できる（公開設定による） |
+| GoalDistの局所目標 | 近傍経路を格子解像度に合わせて補間し、Costmap内かつ未知セルでない点が続く区間の最後のセル。経路全体の最終ゴールとは限らない |
+| `/local_plan`の終端 | 選んだ速度で短時間進むと予測される位置。局所目標と一致する必要はなく、最終到達判定にも使わない |
+
+HumbleのDWBの処理は次の順序になる。
+
+1. ロボット姿勢をGlobal Pathの座標系へ変換する。
+2. Costmapの長い辺の半分を距離上限の基準とし、`prune_plan`・`prune_distance`で通過済みの経路を整理する。`shorten_transformed_plan`が有効なら、前方範囲は`forward_prune_distance`でも制限する。
+3. 近傍の経路点をLocal Costmapの座標系へ変換し、Criticへ渡す。これは矩形の窓との厳密な交点を求める処理ではなく、経路点とロボットの距離による切り出しである。
+4. `GoalDist`は経路上を順に見て、Costmap内の既知セルに入った後、範囲外または未知セルへ出る直前のセルを距離評価の起点にする。未知セルでないことは衝突しないことを意味せず、障害物評価は別のCriticが担当する。`PathDist`などは経路全体への追従も評価し、`GoalAlign`は前方評価点を考慮する。
+5. 候補軌道を評価して速度を選び、次の周期に同じ処理を繰り返す。最終ゴールが窓の外でも、その方向へ続く近傍経路を追える。
+
+例えば6 m四方のLocal Costmapなら距離上限の基準は3 m。前方切り詰めが有効で`forward_prune_distance=2 m`なら、近傍経路は原則2 mの距離条件で切られる。局所目標が必ず窓の端や最終ゴールになるわけではない。経路のサンプル間隔、未知領域、設定で選ばれる点は変わる。対応する点がなければDWBは経路変換・評価に失敗し、窓外に無理にゴールを作らない。
+
+**最終到達判定は別処理である。** Controller ServerはPath全体の終端と現在姿勢を同じ座標系へ揃え、SimpleGoalCheckerでXY距離とYaw差を判定する。Z差そのものは判定しない。`stateful: true`では一度XY条件を満たした後、姿勢合わせの段階でXYの再確認を省く。局所目標や`/local_plan`の端へ到達しただけではNavigateToPoseの成功にはならない。
+
+Local Costmapの`global_frame`をodomからmapへ変更すると、この変換先がmapになる。Global Pathがmap基準ならフレーム間の経路変換は不要になるが、ロボット姿勢・センサー点群には引き続きTFが必要である。純粋なZ並進だけならXY・Yawは変わらない。一方、Roll/Pitchを含む変換では3Dの変換と2Dへの投影の順序がXYへ影響し得るため、高さ表示だけで追従の正常性を判断しない。
+
+RPPは先読み距離に基づく追従点、MPPIは予測区間の評価を使うなど、局所の目標の扱いはControllerごとに異なる。上記のGoalDistのセル選択をNav2全体の共通仕様と見なさない。
+
+参考：[DWBの経路変換](https://github.com/ros-navigation/navigation2/blob/humble/nav2_dwb_controller/dwb_core/src/dwb_local_planner.cpp)、[GoalDistの局所目標選択](https://github.com/ros-navigation/navigation2/blob/humble/nav2_dwb_controller/dwb_critics/src/goal_dist.cpp)、[Controller Serverの最終ゴール判定](https://github.com/ros-navigation/navigation2/blob/humble/nav2_controller/src/controller_server.cpp)。
 
 #### DWAの機能とDWBとの関係 {#costmap-dwa-dwb}
 

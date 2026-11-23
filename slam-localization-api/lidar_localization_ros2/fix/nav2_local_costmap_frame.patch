@@ -1,0 +1,43 @@
+--- a/launch/nav2_navigation.launch.py
++++ b/launch/nav2_navigation.launch.py
+@@ -44,6 +44,7 @@
+     odom_frame_id: str,
+     base_frame_id: str,
+     robot_radius,
++    local_costmap_frame: str = "",
+ ) -> str:
+     with Path(nav2_params_file).open("r", encoding="utf-8") as stream:
+         params = yaml.safe_load(stream)
+@@ -65,11 +66,12 @@
+ 
+     bt_navigator["global_frame"] = global_frame_id
+     bt_navigator["robot_base_frame"] = base_frame_id
+-    local_costmap["global_frame"] = odom_frame_id
++    local_frame = local_costmap_frame.strip() or odom_frame_id
++    local_costmap["global_frame"] = local_frame
+     local_costmap["robot_base_frame"] = base_frame_id
+     global_costmap["global_frame"] = global_frame_id
+     global_costmap["robot_base_frame"] = base_frame_id
+-    behavior_server["global_frame"] = odom_frame_id
++    behavior_server["global_frame"] = local_frame
+     behavior_server["robot_base_frame"] = base_frame_id
+     bt_navigator["odom_topic"] = odom_topic
+     velocity_smoother["odom_topic"] = odom_topic
+@@ -372,6 +374,7 @@
+         odom_frame_id,
+         base_frame_id,
+         robot_radius,
++        local_costmap_frame=LaunchConfiguration("local_costmap_frame").perform(context),
+     )
+     remappings = [("/tf", "tf"), ("/tf_static", "tf_static")]
+ 
+@@ -464,6 +467,9 @@
+             DeclareLaunchArgument("nav2_params_file", default_value=default_nav2_params),
+             DeclareLaunchArgument("global_frame_id", default_value="map"),
+             DeclareLaunchArgument("odom_frame_id", default_value="odom"),
++            DeclareLaunchArgument(
++                "local_costmap_frame", default_value="",
++                description="Local costmap and behavior frame; empty follows odom_frame_id."),
+             DeclareLaunchArgument("base_frame_id", default_value="base_link"),
+             DeclareLaunchArgument("localizer_enable_map_odom_tf", default_value="true"),
+             DeclareLaunchArgument("cloud_topic", default_value="/velodyne_points"),

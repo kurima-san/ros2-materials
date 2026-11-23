@@ -2587,7 +2587,7 @@ white-space: pre-wrap;
 <p>対象環境：Ubuntu 22.04 / ROS 2 Humble<br />
 情報確認日：2026-09-17<br />
 オドメトリ・TF章更新日：2026-10-13<br>
-コストマップ章更新日：2026-11-16</p>
+コストマップ章更新日：2026-11-23</p>
 <section id="この教材の目的" class="level2">
 <h2>この教材の目的</h2>
 <p>この教材は、SLAM内部の数式や最適化手法を詳しく学ぶことよりも、次の要素をROS
@@ -5310,6 +5310,67 @@ Serverへ渡る。<strong>DWBが<code>/plan</code>トピックを直接購読し
 <p>Velocity
 Smootherは速度・加減速の制約に沿って指令を平滑化する。Collision
 Monitorはセンサー情報と設定した監視領域などから減速・停止を判断する。このため、最終指令がDWBの選択した速度と異なり、実際の動きが<code>/local_plan</code>の予測から変わることもある。</p>
+</section>
+<section id="costmap-local-goal-from-path" class="level4">
+<h4>Local Costmap上のゴールはGlobal Pathからどう決まるか</h4>
+<p><strong>Local Costmapが独自にゴールを作るわけではない。</strong>
+ControllerがGlobal
+Pathの近傍部分を取り出し、局所的な追従・評価の対象にする。DWBでは「局所評価の目標」「最終ゴール」「選択した予測軌道の終端」を区別する。</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>対象</th>
+<th>DWB・Humbleでの意味</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>最終ゴール</td>
+<td>FollowPathで受け取ったPath全体の最後の姿勢。Controller
+Serverが保存し、Local Costmapの座標へ変換してGoalCheckerへ渡す</td>
+</tr>
+<tr class="even">
+<td>変換済みの近傍経路</td>
+<td>Global Pathから現在位置付近を切り出し、Local
+Costmapのglobal_frameへ変換した経路。<code>/transformed_global_plan</code>として可視化できる（公開設定による）</td>
+</tr>
+<tr class="odd">
+<td>GoalDistの局所目標</td>
+<td>近傍経路を格子解像度に合わせて補間し、Costmap内かつ未知セルでない点が続く区間の最後のセル。経路全体の最終ゴールとは限らない</td>
+</tr>
+<tr class="even">
+<td><code>/local_plan</code>の終端</td>
+<td>選んだ速度で短時間進むと予測される位置。局所目標と一致する必要はなく、最終到達判定にも使わない</td>
+</tr>
+</tbody>
+</table>
+<p>HumbleのDWBの処理は次の順序になる。</p>
+<ol type="1">
+<li>ロボット姿勢をGlobal Pathの座標系へ変換する。</li>
+<li>Costmapの長い辺の半分を距離上限の基準とし、<code>prune_plan</code>・<code>prune_distance</code>で通過済みの経路を整理する。<code>shorten_transformed_plan</code>が有効なら、前方範囲は<code>forward_prune_distance</code>でも制限する。</li>
+<li>近傍の経路点をLocal
+Costmapの座標系へ変換し、Criticへ渡す。これは矩形の窓との厳密な交点を求める処理ではなく、経路点とロボットの距離による切り出しである。</li>
+<li><code>GoalDist</code>は経路上を順に見て、Costmap内の既知セルに入った後、範囲外または未知セルへ出る直前のセルを距離評価の起点にする。未知セルでないことは衝突しないことを意味せず、障害物評価は別のCriticが担当する。<code>PathDist</code>などは経路全体への追従も評価し、<code>GoalAlign</code>は前方評価点を考慮する。</li>
+<li>候補軌道を評価して速度を選び、次の周期に同じ処理を繰り返す。最終ゴールが窓の外でも、その方向へ続く近傍経路を追える。</li>
+</ol>
+<p>例えば6 m四方のLocal Costmapなら距離上限の基準は3
+m。前方切り詰めが有効で<code>forward_prune_distance=2 m</code>なら、近傍経路は原則2
+mの距離条件で切られる。局所目標が必ず窓の端や最終ゴールになるわけではない。経路のサンプル間隔、未知領域、設定で選ばれる点は変わる。対応する点がなければDWBは経路変換・評価に失敗し、窓外に無理にゴールを作らない。</p>
+<p><strong>最終到達判定は別処理である。</strong> Controller
+ServerはPath全体の終端と現在姿勢を同じ座標系へ揃え、SimpleGoalCheckerでXY距離とYaw差を判定する。Z差そのものは判定しない。<code>stateful: true</code>では一度XY条件を満たした後、姿勢合わせの段階でXYの再確認を省く。局所目標や<code>/local_plan</code>の端へ到達しただけではNavigateToPoseの成功にはならない。</p>
+<p>Local
+Costmapの<code>global_frame</code>をodomからmapへ変更すると、この変換先がmapになる。Global
+Pathがmap基準ならフレーム間の経路変換は不要になるが、ロボット姿勢・センサー点群には引き続きTFが必要である。純粋なZ並進だけならXY・Yawは変わらない。一方、Roll/Pitchを含む変換では3Dの変換と2Dへの投影の順序がXYへ影響し得るため、高さ表示だけで追従の正常性を判断しない。</p>
+<p>RPPは先読み距離に基づく追従点、MPPIは予測区間の評価を使うなど、局所の目標の扱いはControllerごとに異なる。上記のGoalDistのセル選択をNav2全体の共通仕様と見なさない。</p>
+<p>参考：<a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_dwb_controller/dwb_core/src/dwb_local_planner.cpp">DWBの経路変換</a>、<a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_dwb_controller/dwb_critics/src/goal_dist.cpp">GoalDistの局所目標選択</a>、<a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_controller/src/controller_server.cpp">Controller
+Serverの最終ゴール判定</a>。</p>
 </section>
 <section id="costmap-dwa-dwb" class="level4">
 <h4>DWAの機能とDWBとの関係</h4>

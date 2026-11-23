@@ -53,7 +53,7 @@
 | 6.6 | 保存地図・観測レイヤー・合成結果・Inflationの4段階 |
 | [6.7](index.html#costmap-retention-policies) | 空き観測で消す・保持する・時間で消す設定、STVLの視野内加速、消去時系列の比較 |
 | [6.8](index.html#costmap-radius-example) | 半径0.45 m・膨張0.80 m・係数3.0の数値例と通路幅、膨張範囲の重なり、距離コスト曲線 |
-| [6.9](index.html#costmap-plan-local-plan-cmd-vel) | plan・local_plan・cmd_velの関係、DWAの機能とDWBの軌道評価、Collision Monitorの停止・減速と設定例 |
+| [6.9](index.html#costmap-plan-local-plan-cmd-vel) | plan・local_plan・cmd_velの関係、Global Pathからの局所目標選択、DWAの機能とDWBの軌道評価、Collision Monitorの停止・減速と設定例 |
 | 6.10 | 局所での停止と、大域への反映・再計画 |
 | [6.13～6.15](index.html#costmap-parameters) | 主要パラメータ、広場・狭路の速度変化、RPP・Speed Filter・動的Inflation |
 | 11.3 | STVLの点群・3Dボクセル・2D投影、時間減衰、再登録、視野モデル |

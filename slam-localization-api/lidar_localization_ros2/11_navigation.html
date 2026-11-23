@@ -277,6 +277,8 @@ base_frame_id = base_link
 <code>base_link → sensor</code> はURDF/robot_state_publisher等の1系統だけがPublishする。</div>
 </section>
 
+<section class="page"><h2>Global / Local Costmapの高さと局所ゴール</h2><p>Go2・MID-360での高さ不一致について、6DoF TF、起動時のフレーム上書き、Voxelの高さ範囲、Global PathからDWBの局所目標を選ぶ処理を調査した。案Aは比較試験用であり、実機での受け入れは未確認。</p><p><a href="fix/costmap_height_investigation.html">調査結果・最小修正・実機とrosbagの検証手順</a> ／ <a href="fix/nav2_local_costmap_frame.patch">統合launch用patch</a></p></section>
+
 <section class="page"><h2>11.6 現行リポジトリのNav2統合Launch</h2>
 
 <p>リポジトリには <code>nav2_navigation.launch.py</code> があり、
