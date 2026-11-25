@@ -49,6 +49,8 @@
 
   const modules = [...courseContent.querySelectorAll("section.level2")];
 
+  const navigationItems = [];
+
   modules.forEach((module, index) => {
     module.classList.add("module");
     module.dataset.topic = topicByIndex[index] || "reference";
@@ -83,7 +85,45 @@
     navLink.href = `#${module.id}`;
     navLink.dataset.module = module.dataset.module;
     navLink.innerHTML = `<span class="nav-number">${chapterLabels[index] || String(index).padStart(2, "0")}</span><span>${heading.textContent}</span>`;
-    navList.append(navLink);
+    navLink.className = "nav-chapter-link";
+    const chapter = document.createElement("details");
+    chapter.className = "nav-chapter";
+    const summary = document.createElement("summary");
+    summary.append(navLink);
+    chapter.append(summary);
+    const children = document.createElement("div");
+    children.className = "nav-children";
+    chapter.append(children);
+    navList.append(chapter);
+    navigationItems.push({ link: navLink, target: module, heading, module, group: chapter });
+
+    let subsection = children;
+    module.querySelectorAll("h3, h4").forEach((subheading, subIndex) => {
+      const section = subheading.parentElement;
+      const target = section.matches("section") ? section : subheading;
+      if (!target.id) target.id = `${module.id}-section-${subIndex + 1}`;
+      const link = document.createElement("a");
+      link.href = `#${encodeURIComponent(target.id)}`;
+      link.textContent = subheading.textContent;
+      link.className = `nav-sub-link nav-${subheading.tagName.toLowerCase()}`;
+      if (subheading.tagName === "H3") {
+        const group = document.createElement("details");
+        group.className = "nav-section";
+        const label = document.createElement("summary");
+        label.append(link);
+        group.append(label);
+        children.append(group);
+        subsection = group;
+      } else {
+        subsection.append(link);
+      }
+      navigationItems.push({ link, target, heading: subheading, module, group: chapter });
+    });
+    // A chapter or section without children remains a simple link.
+    chapter.querySelectorAll("details").forEach((group) => {
+      if (group.children.length === 1) group.replaceWith(group.firstElementChild.firstElementChild);
+    });
+    if (!children.children.length) chapter.replaceWith(navLink);
   });
 
   document.querySelectorAll("#courseContent table").forEach((table) => {
@@ -216,7 +256,7 @@
   renderMermaid();
 
   const doneBoxes = [...document.querySelectorAll(".module-done")];
-  const navLinks = [...document.querySelectorAll("#navList a")];
+  const navLinks = [...document.querySelectorAll("#navList .nav-chapter-link")];
 
   function savedProgress() {
     return safeJsonParse(localStorage.getItem(STORAGE_KEY) || "{}", {});
@@ -256,6 +296,8 @@
   doneBoxes.forEach((box) => box.addEventListener("change", saveProgress));
   loadProgress();
 
+  let searchExpansion = null;
+
   function applyFilters() {
     const query = searchBox.value.trim().toLocaleLowerCase("ja");
     const topic = topicFilter.value;
@@ -269,10 +311,30 @@
       if (show) visible += 1;
     });
 
-    navLinks.forEach((link) => {
-      const target = document.querySelector(link.getAttribute("href"));
-      link.hidden = Boolean(target?.hidden);
+    navigationItems.forEach(({ link, module, group }) => {
+      group.hidden = module.hidden;
+      link.hidden = module.hidden;
     });
+    if (query && !searchExpansion) {
+      searchExpansion = new Map([...navList.querySelectorAll("details")].map((group) => [group, group.open]));
+    }
+    if (query) {
+      navigationItems.forEach(({ link, target, module, group }) => {
+        const match = !module.hidden && target.textContent.toLocaleLowerCase("ja").includes(query);
+        link.classList.toggle("search-match", match && link.textContent.toLocaleLowerCase("ja").includes(query));
+        if (match) {
+          group.open = true;
+          for (let parent = link.parentElement; parent && parent !== navList; parent = parent.parentElement) {
+            if (parent.tagName === "DETAILS") parent.open = true;
+          }
+        }
+      });
+    } else {
+      searchExpansion?.forEach((open, group) => { group.open = open; });
+      searchExpansion = null;
+      navList.querySelectorAll(".search-match").forEach((link) => link.classList.remove("search-match"));
+    }
+    updateActiveNavigation();
 
     if (query || topic !== "all") {
       searchStatus.textContent = `${visible} / ${modules.length} 章を表示`;
@@ -284,20 +346,48 @@
   searchBox.addEventListener("input", applyFilters);
   topicFilter.addEventListener("change", applyFilters);
 
-  const observer = new IntersectionObserver((entries) => {
-    const visible = entries
-      .filter((entry) => entry.isIntersecting && !entry.target.hidden)
-      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-    if (!visible) return;
-    navLinks.forEach((link) => {
-      link.classList.toggle("active", link.getAttribute("href") === `#${visible.target.id}`);
+  function updateActiveNavigation() {
+    const candidates = navigationItems.filter(({ module }) => !module.hidden);
+    let current = candidates[0];
+    for (const item of candidates) {
+      if (item.heading.getBoundingClientRect().top <= 120) current = item;
+      else break;
+    }
+    navigationItems.forEach((item) => {
+      const active = item === current;
+      item.link.classList.toggle("active", active);
+      if (active) item.link.setAttribute("aria-current", "location");
+      else item.link.removeAttribute("aria-current");
     });
-  }, {
-    rootMargin: "-15% 0px -70% 0px",
-    threshold: [0.05, 0.18, 0.45]
-  });
+  }
 
-  modules.forEach((module) => observer.observe(module));
+  function revealNavigationTarget() {
+    let id;
+    try { id = decodeURIComponent(location.hash.slice(1)); } catch (_) { return; }
+    const item = navigationItems.find(({ target }) => target.id === id);
+    if (!item) return;
+    for (let parent = item.link.parentElement; parent && parent !== navList; parent = parent.parentElement) {
+      if (parent.tagName === "DETAILS") parent.open = true;
+    }
+  }
+
+  navList.addEventListener("click", (event) => {
+    const link = event.target.closest("a");
+    if (!link) return;
+    const group = link.closest("details");
+    if (group) group.open = true;
+  });
+  window.addEventListener("hashchange", revealNavigationTarget);
+  let navigationFrame = null;
+  window.addEventListener("scroll", () => {
+    if (navigationFrame !== null) return;
+    navigationFrame = requestAnimationFrame(() => {
+      updateActiveNavigation();
+      navigationFrame = null;
+    });
+  }, { passive: true });
+  revealNavigationTarget();
+  updateActiveNavigation();
 
   document.querySelectorAll('a[href^="http"]').forEach((link) => {
     link.target = "_blank";
