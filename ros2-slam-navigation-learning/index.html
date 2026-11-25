@@ -181,7 +181,7 @@ class="level1">
 <p>対象環境：Ubuntu 22.04 / ROS 2 Humble<br />
 情報確認日：2026-09-17<br />
 オドメトリ・TF章更新日：2026-10-13<br>
-コストマップ章更新日：2026-11-23</p>
+コストマップ章更新日：2026-11-25</p>
 <section id="この教材の目的" class="level2">
 <h2>この教材の目的</h2>
 <p>この教材は、SLAM内部の数式や最適化手法を詳しく学ぶことよりも、次の要素をROS
@@ -2588,6 +2588,124 @@ href="#stvl-frustum-guide">視野モデルの図</a>を参照する。</p>
 Windowから外れることは対象範囲が変わることであり、空きの確認ではない。ClearサービスやRecoveryでのリセットも、観測や寿命とは別の明示的な操作である。消した後に新しい観測や保存地図から再び障害物が入ることもある。</p>
 <p>設定を比較するときは、同じ位置の障害物について「見続ける」「どけて背後を観測する」「遮蔽して見えなくする」「入力を止める」を別々に試す。元の観測、対象レイヤー、最終Costmap、鮮度判定を合わせて記録すると、消えた理由と残った理由を切り分けられる。</p>
 </section>
+<section id="costmap-3d-height" class="level4">
+<h4>3D LiDARでは高さを選んでから2Dへ投影する</h4>
+<p><strong>3D
+LiDARの点群が見えていても、その点がCostmapの障害物になるとは限らない。</strong>
+点群には床、箱、机の天板、梁、天井が同時に含まれる。Nav2の2D格子へ落とす前に「機体が衝突する高さか」を選別し、その後にGlobal・Localそれぞれの入力条件とレイヤー条件を通す必要がある。</p>
+<figure class="costmap-visual">
+<figcaption>
+<strong>高さの違う箱と梁も、投影後は同じ種類の2D障害物になる</strong>
+</figcaption>
+<img src="assets/figures/costmap-height-projection.svg" width="1000" height="440" alt="側面図の床と高い天井を除き、低い箱と機体に接触する梁を残す。箱と梁はそれぞれXYの障害物セルになる。">
+<p>
+色の付いた高さ帯は説明用。低い障害物をGo2が必ず踏み越えられるわけではなく、搭載LiDARに当たる梁も無視できない。2D格子には上下の空間構造が残らないため、複数階や張り出しの下を通れるかは、前処理や地図の分離で判断する。
+</p>
+</figure>
+<p>標準<code>ObstacleLayer</code>もPointCloud2を入力できるが、完成する障害物表現は2Dである。<code>VoxelLayer</code>は内部で高さ方向の格子を保持して2Dへ投影し、STVLは3Dの記録に時間減衰も加える。<strong>どれを使っても、床推定や歩行可能な段差の判定が自動的に完成するわけではない。</strong>
+穴・下り段差は「点がない場所」を含むため、観測点だけの障害物登録とは別の地形判定が必要になる。</p>
+</section>
+<section id="costmap-relative-height" class="level4">
+<h4>床からの高さとmap・odomのZは別の量</h4>
+<p>鉛直方向へ整合した共通座標系をG、LiDAR座標系をSとする。観測時刻のTFで回転・並進を含めて変換した後、床からの高さを計算する。</p>
+<pre class="text"><code>p_G = R_GS × p_S + t_GS
+床からの高さ h = p_G.z − z_floor(p_G.x, p_G.y)
+センサー原点からの鉛直相対高さ = p_G.z − t_GS.z</code></pre>
+<p><code>z_floor(x,y)</code>は、その点の真下の床面高度である。センサー原点からの相対高さに固定の取付高さを足す方法は、床面とセンサーの距離を一定とする近似になる。四足歩行の上下動、傾斜、段差では誤差が出る。床面を点群から推定する場合も、床点の不足、複数の面、推定失敗時の処理を確認する。生のLiDAR座標のZだけを高さとして使うと、取付角度や機体のRoll/Pitchで判定が変わる。</p>
+<p><strong>上流で床からの相対高さを使って選別しても、Nav2側がmap／odomの固定Z範囲で再び除外する場合がある。</strong>
+標準のObservationBufferは観測時刻のTFでCostmapのglobal_frameへ点群を変換してから、sourceの高さ条件を適用する。同じ点群を両Costmapへ接続していても、変換後のZと各レイヤーの条件が違えば、登録結果は一致しない。</p>
+<figure class="costmap-visual">
+<figcaption>
+<strong>同じ高さ15
+cmの箱がLocalだけに現れる仕組みと、上りでの欠落</strong>
+</figcaption>
+<img src="assets/figures/costmap-height-frames.svg" width="1000" height="420" alt="odomで床0mと箱上面0.15m、mapで床マイナス0.30mと箱上面マイナス0.15mの例。map下限0mならGlobalだけ除外。上り先では床1.90mと箱上面2.05mになり上限2mを超える。">
+<p>
+説明用の合成例であり、現場のTF測定値ではない。上りの例は箱の上面の観測点が除外されることを示す。上限以下に側面の点が残れば、箱自体は登録される場合がある。図の下限0
+mはその条件を持つ版・設定での例。Humbleでも実装時期や派生レイヤーによって高さパラメータの有無・既定値が異なるので、実効値を確認する。
+</p>
+</figure>
+<p>1%の勾配でも100 m進めば床面高度は1 m変わる。固定のmap
+Z帯が、どこでも床から同じ高さを表すわけではない。一方、正確なTFなら機体が歩行で上下しても静止物のmap座標は補償される。「歩行の上下動」「地形自体の高度変化」「TFや時刻の誤差」「固定センサー高による床推定誤差」を区別する。</p>
+</section>
+<section id="costmap-height-stages" class="level4">
+<h4>高さ条件は入力source・レイヤー・Voxelで確認する</h4>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>段階</th>
+<th>何を確認するか</th>
+<th>欠落しやすい例</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>地面除去・前処理</td>
+<td>床からの相対高さ、床推定誤差、機体の自己点除去</td>
+<td>下限12 cmなら、それ未満の点だけを持つ低障害物はここで消える</td>
+</tr>
+<tr class="even">
+<td>各Costmapの観測source</td>
+<td><code>min_obstacle_height</code>・<code>max_obstacle_height</code>、入力topic、TF</td>
+<td>Globalではmap、Localでは設定したglobal_frameのZで別々に選別される</td>
+</tr>
+<tr class="odd">
+<td>レイヤー本体</td>
+<td>レイヤー直下の高さ上限・下限、marking、range、閾値</td>
+<td>sourceで−2～3 mを通しても、レイヤー上限2 mなら2.5
+mの点を登録できない</td>
+</tr>
+<tr class="even">
+<td>Local VoxelLayer</td>
+<td><code>origin_z</code>・<code>z_resolution</code>・<code>z_voxels</code>、登録・消去光線</td>
+<td>0 m起点・0.1 m×16層なら約0～1.6 mの格子。source上限3
+mと同じ範囲ではない</td>
+</tr>
+<tr class="odd">
+<td>Collision Monitor</td>
+<td>入力点群、base frame、独自の高さ条件</td>
+<td>base基準の下限を床からの高さと誤認すると、低障害物が停止判定から抜ける</td>
+</tr>
+</tbody>
+</table>
+<p>VoxelLayerでは<code>origin_z</code>より低い点を最下段へ投影する実装もある。したがって「格子下端より低い点は必ず消える」とは限らない。sourceでの除外、レイヤーの高さ判定、格子へ格納する処理を順に追う。Rolling
+Windowが追従するのはXYの範囲であり、VoxelのZ帯が床の高度へ自動追従する機能ではない。</p>
+</section>
+<section id="costmap-3d-settings" class="level4">
+<h4>3D点群を両Costmapへ渡す設定方針</h4>
+<pre class="mermaid"><code>flowchart TD
+    P[&quot;3D点群＋観測時刻のTF&quot;] --&gt; F[&quot;鉛直方向を揃え、床を推定&lt;br/&gt;床からの相対高さで障害物を選別&quot;]
+    F --&gt; Q[&quot;XYZ座標・frame_id・観測時刻を保持した点群&quot;]
+    Q --&gt; G[&quot;Global：mapへ変換&lt;br/&gt;source・layerの条件を確認&quot;]
+    Q --&gt; L[&quot;Local：設定した座標へ変換&lt;br/&gt;source・layer・Voxel範囲を確認&quot;]
+    G --&gt; GP[&quot;Global Costmap → Planner → 再計画&quot;]
+    L --&gt; LC[&quot;Local Costmap → Controller → 停止・回避&quot;]</code></pre>
+<ol type="1">
+<li><strong>入力を確認する。</strong>
+地面除去済み点群と、背面・近距離を切っただけの点群を区別する。Localization用に壁や床を残す入力と、Nav2用の障害物入力は役割が違う。</li>
+<li><strong>残す高さを物理的に決める。</strong>
+下限は見落としてはいけない最小障害物と床推定誤差、上限は機体・搭載物の最大高さと余裕から決める。例えば最小5
+cm・誤差2 cmなら下限3 cm、最大65 cm・上方余裕10 cmなら上限75
+cmという考え方になる。説明用でありGo2の推奨値ではない。</li>
+<li><strong>Global・Local双方で再除外を防ぐ。</strong>
+地面除去が成立している前提で、走行域の最低・最高高度も含めsourceとlayerの絶対Z範囲を見直す。生点群の高さ範囲を無条件に広げると床や天井まで障害物になる。</li>
+<li><strong>Voxelの範囲も比較する。</strong>
+高度差が格子を超える場合、Z分解能・範囲の変更、または前処理済み点群を既存ObstacleLayerへ入力する構成を比較する。ObstacleLayerに変えてもsource・layerの高さ条件は残る。Humbleの標準VoxelGridは最大16層であり、層数だけを無制限に増やせない。</li>
+<li><strong>登録と消去を両方確認する。</strong>
+平坦路、上り、下り、歩行上下動で低い箱・低い梁の検出と床の非検出を確認し、物をどけた後のClearing・残像も比較する。Globalへ障害物を残し過ぎれば、今度は不要な迂回が続く。</li>
+</ol>
+<p>3D自己位置推定のZ・Roll・Pitchを削除したり、TF変換前に点群のZを0へ潰したりして対処しない。両Costmapの表示平面を揃える変更と、高さフィルタによる欠落の対処は別である。InflationもXY平面の余裕であり、選別で消えた障害物を復活させない。</p>
+<p>提供資料<code>costmap_height_filtering.md</code>では、<code>kurima-dev</code>の<code>360bb9f</code>を対象に<code>/ground_filter/nonground</code>を両Costmapへ接続する構成が報告されている。ここではその知見を説明に用いたが、この教材から実機の有効topicや設定値は確定できない。個別の設定値は起動時の上書きも含めて取得する。実装参考：<a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/src/observation_buffer.cpp">Humble
+ObservationBuffer</a>、<a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/plugins/obstacle_layer.cpp">ObstacleLayer</a>、<a
+href="https://github.com/ros-navigation/navigation2/blob/humble/nav2_costmap_2d/plugins/voxel_layer.cpp">VoxelLayer</a>。</p>
+</section>
 </section>
 <section id="costmap-footprint" class="level3">
 <h3>6.8 FootprintとInflation：機体の大きさと余裕をどう表すか</h3>
@@ -3196,6 +3314,69 @@ Global側の障害物レイヤーにも閉塞を反映し、Plannerを再実行�
 <p><strong>Localにだけ台車を入れ、Globalを保存地図だけにしていると、再計画してもAを選び続ける場合がある。</strong>
 Global側にも適切な障害物レイヤーを設定するなど、閉塞を大域計画へ伝える仕組みが必要である。また、観測していない遠くの閉塞をGlobalが自動的に知るわけではない。</p>
 <p>「局所で避けられる物体」と「別の通路を選ぶ必要がある閉塞」は、同じ障害物でも機体幅、通路幅、Controllerによって変わる。局所の短い予測範囲だけで建物全体の迂回を解こうとしない。</p>
+<section id="costmap-dual-obstacle-settings" class="level4">
+<h4>両Costmapへの反映が経路と近傍目標を左右する</h4>
+<p><strong>直近の停止・回避にはLocalへの障害物反映、塞がった通路を避ける大域再計画にはGlobalへの反映が重要である。</strong>
+両者は独立して更新される。同じセンサーを使っていても、入力topic・TF・高さフィルタ・登録範囲・レイヤーの違いで、片方だけに物体が現れる場合がある。</p>
+<figure class="costmap-visual">
+<figcaption>
+<strong>「見えているCostmap」が違うと、停止と経路更新の結果も変わる</strong>
+</figcaption>
+<img src="assets/figures/costmap-dual-obstacle-flow.svg" width="1000" height="420" alt="Globalだけ欠落した場合は旧経路への追従が続くがLocalで停止可能。両方欠落すると障害物方向の指令が出る恐れ。両方に反映し再計画すると別の経路へ更新できる。">
+<p>
+模式図の迂回線はNav2の実行結果ではない。経路が変わるには、Globalへ閉塞が反映された後で再計画を実行し、新しいPathをControllerへ渡す必要がある。
+</p>
+</figure>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Globalへの反映</th>
+<th>Localへの反映</th>
+<th>起こり得る状態</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>なし</td>
+<td>あり</td>
+<td>Global
+Pathが閉塞した通路を通り続け、近傍目標もその通路側へ誘導し続ける場合がある。Localでは回避・停止できるが、再試行・前進と停止・振動を繰り返すことがある</td>
+</tr>
+<tr class="even">
+<td>あり</td>
+<td>なし</td>
+<td>再計画後の経路は避けても、直近の衝突確認に欠落がある。再計画までの間や局所の軌道逸脱を大域経路だけでは防げない</td>
+</tr>
+<tr class="odd">
+<td>なし</td>
+<td>なし</td>
+<td>計画と制御の両方が障害物を評価できず、衝突方向の指令を出す恐れがある</td>
+</tr>
+<tr class="even">
+<td>あり</td>
+<td>あり</td>
+<td>局所で停止・回避しつつ、大域再計画で閉塞を避ける経路へ切り替えられる。通路が他にない場合は停止・失敗処理になる</td>
+</tr>
+</tbody>
+</table>
+<p>利用者からは「新しい障害物があるのに、近傍目標が変わらず、どうにかそこへ進もうとしている」と見える場合がある。特に3D点群の高さ条件によってGlobalだけから低障害物が消えると、Localが止めてもPlannerは旧通路を再び選び得る。</p>
+<p>ただし、<strong>「両方に障害物が入らない限り、近傍目標は更新されない」という同期条件はない。</strong>
+<a
+href="#costmap-local-goal-from-path">6.9節</a>のDWBでは、近傍経路や局所目標は現在位置とPath、Costmap内の有効な範囲などから計算するため、ロボットの移動やPath更新でも変わる。GoalDistの局所目標セルは障害物のない迂回先を探索して選ぶものではないので、Localへ物体を登録しただけで閉塞の反対側へ目標が移るとは限らない。正しいLocalの衝突評価が働けば、Globalに物体がなくても停止・回避は可能であり、必ず衝突するという意味ではない。</p>
+<p>設定は「両方を同じ数値にする」のではなく、<strong>同じ物理的な障害物を、それぞれの座標系で適切に取り込む</strong>ように揃える。センサー範囲外の物体までGlobalが即座に検出するわけではない。確認は次の順に行う。</p>
+<ol type="1">
+<li>元点群、地面除去後の点群、Global、Localに同じ障害物が残るかを比較する。片方で消えるなら<a
+href="#costmap-height-stages">高さ条件の各段階</a>、TF時刻、marking、範囲、更新周期を調べる。</li>
+<li>Globalに入った後でPlannerが再実行され、<code>/plan</code>が閉塞を避けるかを確認する。<code>publish_frequency</code>を上げても再計画は起動しない。</li>
+<li>新しいPathがFollowPathへ渡り、<code>/transformed_global_plan</code>、<code>/local_plan</code>、速度指令が変わるかを確認する。切り出した経路と予測軌道を混同しない。</li>
+<li>物体を除去した後、両Costmapから適切に消え、通路が再び利用可能になるかも確認する。停止・再試行を見て高さ問題と即断せず、Footprint、Critic、TF遅延、Controller失敗も切り分ける。</li>
+</ol>
+</section>
 </section>
 <section id="costmap-timing" class="level3">
 <h3>6.11 更新周期とPublish周期を分けて読む</h3>

@@ -54,7 +54,8 @@
 | [6.7](index.html#costmap-retention-policies) | 空き観測で消す・保持する・時間で消す設定、STVLの視野内加速、消去時系列の比較 |
 | [6.8](index.html#costmap-radius-example) | 半径0.45 m・膨張0.80 m・係数3.0の数値例と通路幅、膨張範囲の重なり、距離コスト曲線 |
 | [6.9](index.html#costmap-plan-local-plan-cmd-vel) | plan・local_plan・cmd_velの関係、Global Pathからの局所目標選択、DWAの機能とDWBの軌道評価、Collision Monitorの停止・減速と設定例 |
-| 6.10 | 局所での停止と、大域への反映・再計画 |
+| [6.7](index.html#costmap-3d-height) | 3D点群の高さ選別、床相対高さと絶対Z、箱・梁の2D投影、Global/Localでの再除外 |
+| [6.10](index.html#costmap-dual-obstacle-settings) | 両Costmapへの障害物反映、近傍目標が閉塞側へ誘導し続ける場合、再計画と局所回避の違い |
 | [6.13～6.15](index.html#costmap-parameters) | 主要パラメータ、広場・狭路の速度変化、RPP・Speed Filter・動的Inflation |
 | 11.3 | STVLの点群・3Dボクセル・2D投影、時間減衰、再登録、視野モデル |
 
@@ -125,3 +126,5 @@ Inflationと速度の図は`python3 scripts/generate_costmap_tuning_figures.py`�
 - Livox MID-360の手持ちMapping
 - 四足歩行ロボット、ヒューマノイド、車輪移動ロボット
 - 3D LiDARを使う実機の障害物回避と安全停止
+
+3D点群の高さと両Costmapの図は`python3 scripts/generate_costmap_height_figures.py`で再生成します。説明用の合成例で、実機測定やNav2のシミュレーション結果ではありません。通常版のSVG更新後は単一HTML版の対応画像も更新します。

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="440" viewBox="0 0 1000 440" role="img" aria-labelledby="title desc">
+<title id="title">高さを選んでから2Dへ投影する</title><desc id="desc">側面図で床、低い箱、梁、天井を区別し、機体が衝突する高さの箱と梁だけをXYセルへ投影する。寸法は模式例。</desc>
+<rect width="100%" height="100%" rx="12" fill="#f8fafc"/>
+<g font-family="Noto Sans CJK JP, sans-serif" fill="#25364b">
+<text x="24" y="32" font-size="21" fill="#25364b">① 側面：高さを選ぶ（模式図）</text>
+<rect x="45" y="150" width="565" height="100" fill="#dceee7" stroke="#dceee7" rx="3"/>
+<path d="M45,270 L610,270" fill="none" stroke="#25364b" stroke-width="3"/>
+<path d="M45,65 L610,65" fill="none" stroke="#25364b" stroke-width="3"/>
+<text x="470" y="55" font-size="16" fill="#25364b">高い天井：除外</text>
+<text x="45" y="294" font-size="16" fill="#25364b">床：除去</text>
+<rect x="75" y="175" width="95" height="45" fill="#d7e5f7" stroke="#2764b0" rx="3"/>
+<path d="M90,220 L80,270" fill="none" stroke="#2764b0" stroke-width="3"/>
+<path d="M155,220 L165,270" fill="none" stroke="#2764b0" stroke-width="3"/>
+<text x="65" y="160" font-size="16" fill="#25364b">機体＋搭載物</text>
+<rect x="260" y="228" width="55" height="42" fill="#f3c1c9" stroke="#b83449" rx="3"/>
+<text x="245" y="212" font-size="17" fill="#b83449">低い箱</text>
+<rect x="430" y="155" width="65" height="28" fill="#f3c1c9" stroke="#b83449" rx="3"/>
+<path d="M460,65 L460,155" fill="none" stroke="#25364b" stroke-width="3"/>
+<text x="420" y="140" font-size="17" fill="#b83449">低い梁</text>
+<circle cx="260" cy="230" r="4" fill="#2764b0"/>
+<circle cx="285" cy="228" r="4" fill="#2764b0"/>
+<circle cx="315" cy="242" r="4" fill="#2764b0"/>
+<circle cx="430" cy="157" r="4" fill="#2764b0"/>
+<circle cx="455" cy="183" r="4" fill="#2764b0"/>
+<circle cx="495" cy="169" r="4" fill="#2764b0"/>
+<circle cx="215" cy="270" r="4" fill="#2764b0"/>
+<circle cx="360" cy="270" r="4" fill="#2764b0"/>
+<circle cx="340" cy="65" r="4" fill="#2764b0"/>
+<text x="640" y="32" font-size="21" fill="#25364b">② XYへ投影した結果</text>
+<rect x="650" y="175" width="48" height="48" fill="#ffffff" stroke="#8794a5" rx="3"/>
+<rect x="698" y="175" width="48" height="48" fill="#ffffff" stroke="#8794a5" rx="3"/>
+<rect x="746" y="175" width="48" height="48" fill="#ffffff" stroke="#8794a5" rx="3"/>
+<rect x="794" y="175" width="48" height="48" fill="#ffffff" stroke="#8794a5" rx="3"/>
+<rect x="842" y="175" width="48" height="48" fill="#ffffff" stroke="#8794a5" rx="3"/>
+<rect x="890" y="175" width="48" height="48" fill="#ffffff" stroke="#8794a5" rx="3"/>
+<rect x="746" y="175" width="48" height="48" fill="#25364b" stroke="#25364b" rx="3"/>
+<rect x="842" y="175" width="48" height="48" fill="#25364b" stroke="#25364b" rx="3"/>
+<text x="650" y="252" font-size="17" fill="#25364b">箱も梁も「そのXYは障害物」</text>
+<text x="650" y="282" font-size="17" fill="#25364b">高さの違いは2D格子に残らない</text>
+<text x="24" y="345" font-size="18" fill="#25364b">緑の帯：床からの相対高さで選ぶ範囲。実際は床面・機体形状・余裕から決める。</text>
+<text x="24" y="382" font-size="18" fill="#25364b">高い天井まで残すと通路を塞ぎ、低い箱や梁を消すと衝突対象を見落とす。</text>
+<text x="24" y="416" font-size="17" fill="#25364b">穴や段差の危険は「点がない＝通れる」では判定できない。別の地形判定が必要。</text>
+</g></svg>
